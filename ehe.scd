@@ -15,7 +15,7 @@
 7.do({ arg i; ~hz_init[i] = (~hz_init[i].cpsmidi + 0.14.rand2).midicps });
 ~hz_init.postln;
 
- ~start = 60 * 6;
+ ~start = 60 * 2.6;
 // ~start = 0;
 
 Routine {
@@ -63,10 +63,15 @@ Routine {
 	SynthDef.new(\ehe_osc, {
 		// TODO: we'll work on making this substantially more interesting:
 		// - harmonic content (waveshaping, etc)
-		// - drift?
+		// - drift? [added, but maybe chaotic function is better]
 		// - hiss/noise?
 		// - FM matrix?
-		Out.ar(\out.kr(0), SinOsc.ar(\hz.kr(48)) * \amp.kr(0.1));
+
+		var drift = LFNoise2.kr(\drift_rate.kr(0.01), \drift_st.kr(0.07));
+		var fb_drift = LFNoise2.kr(\fb_drift_rate.kr(0.01));
+		var feedback = \feedback.kr(2/7) * fb_drift.max(\fb_floor.kr(0.0));
+		var osc = SinOscFB.ar(\hz.kr(48) * K2A.ar(drift.midiratio), feedback);
+		Out.ar(\out.kr(0), osc * \amp.kr(0.1));
 	}).send(s);
 
 	// VCA node
@@ -81,8 +86,8 @@ Routine {
 
 	// output mix / pan node
 	SynthDef.new(\ehe_mix, {
-		var level = Lag.kr(\level.kr(0), \levelLag.kr(1));
-		var pos = Lag.kr(\pos.kr(0), \posLag.kr(1));
+		var level = Lag.kr(\level.kr(0), \level_lag.kr(1));
+		var pos = Lag.kr(\pos.kr(0), \pos_lag.kr(1));
 		Out.ar(\out.kr(0), Pan2.ar(In.ar(\in.kr(0)), pos, level))
 	}).send(s);
 
@@ -237,9 +242,4 @@ Routine {
 	// simplest display of busses
 	~bscope = Bus.new('audio', b[\src][0].index, 8, s);
 	{ ~bscope.scope; }.defer;
-
-
-
-
-
 }.play;

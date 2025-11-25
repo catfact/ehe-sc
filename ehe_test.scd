@@ -33,3 +33,6 @@ z[\mix][5].set(\level, 1);
 z[\mix][6].set(\level, 1);
 
 b[\mix].scope;
+
+z[\osc].do({ arg osc; osc.set(\feedback, 2.0); });
+z[\osc].do({ arg osc; osc.set(\feedback, 2/7); });

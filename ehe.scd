@@ -15,14 +15,13 @@
 7.do({ arg i; ~hz_init[i] = (~hz_init[i].cpsmidi + 0.14.rand2).midicps });
 ~hz_init.postln;
 
-//~start = 60 * 6;
-~start = 0;
+ ~start = 60 * 6;
+// ~start = 0;
 
 Routine {
 	s = Server.default;
 	s.boot;
 	s.sync;
-
 
 	//-----------------------------------------------------------------
 	// ---- synth definitions
@@ -31,7 +30,7 @@ Routine {
 	SynthDef.new(\ehe_env, {
 
 		// x = rectified input
-		var x = In.ar(\in.kr(0)).abs; // * \g.kr(1);
+		var x = In.ar(\in.kr(0)); // * \g.kr(1);
 
 		/*
 		// this version is closer to serge patch (i think?)
@@ -46,32 +45,38 @@ Routine {
 		var env_spec = Env.new([0, 1, 0], times, curves, releaseNode:1);
 		var env = EnvGen.ar(env_spec, trig);
 		*/
-		var gated = (x * \gain.kr(1)).min(1.0) * (x > \t.kr(0.001));
-		var env = LagUD.ar(gated, \a.kr(7), \r.kr(7));
+
+		var ax = x.abs;
+		var gated = (ax * \gain.kr(1.0)).min(1.0) * (ax > \t.kr(0.001));
+		var env = LagUD.ar(gated, \a.kr(7.0), \r.kr(7.0));
 
 		// c = multiplier
 		// b = offset
 		// y = output
-		var y = (env * \c.kr(1)) + \b.kr(0);
+		var y = (env * \c.kr(1.0)) + \b.kr(0.0);
+
 		Out.ar(\out.kr(0), y);
+		// env.poll;
 	}).send(s);
 
 	// oscillator node
 	SynthDef.new(\ehe_osc, {
 		// TODO: we'll work on making this substantially more interesting:
-		// - harmonic content
-		// - drift
-		// - hiss?
+		// - harmonic content (waveshaping, etc)
+		// - drift?
+		// - hiss/noise?
+		// - FM matrix?
 		Out.ar(\out.kr(0), SinOsc.ar(\hz.kr(48)) * \amp.kr(0.1));
 	}).send(s);
 
 	// VCA node
 	SynthDef.new(\ehe_vca, {
 		var level = K2A.ar(\level.kr(0).lag(1));
-		var floor = K2A.ar(\levelFloor.kr(0).lag(1));
 		var mod = In.ar(\mod.kr(1));
-		var gain =  Lag.ar(level * (mod.max(floor)), 1);
-		Out.ar(\out.kr(0), In.ar(\in.kr(0)) * level);
+		// var floor = K2A.ar(\levelFloor.kr(0).lag(1));
+		// var gain =  Lag.ar(level * (mod.max(floor)), 1);
+		var gain = level * mod;
+		Out.ar(\out.kr(0), In.ar(\in.kr(0)) * gain);
 	}).send(s);
 
 	// output mix / pan node
@@ -168,7 +173,7 @@ Routine {
 	// envelope follower synths
 	z[\env] = Array.fill(4, { arg i; Synth.new(\ehe_env, [
 		\out, b[\env][i].index,
-		\in, b[\osc][i].index
+		\in, b[\src][i].index
 	], addAction:\addToTail);
 	});
 
@@ -200,17 +205,17 @@ Routine {
 	//---- initial settings
 
 	4.do({ arg i;
-		z[\env][i].set(\gain, 12.dbamp, \c, 8.dbamp);
+		z[\env][i].set(\gain, 24.dbamp, \c, 0.dbamp);
 	});
 
 
 	z[\mix][0].set(\level, -6.dbamp, \pan, 0);
 	z[\mix][1].set(\level, -6.dbamp, \pan, -0.2);
 	z[\mix][2].set(\level, -6.dbamp, \pan, 0.2);
-	z[\mix][3].set(\level, -8.dbamp, \pan, -0.4);
-	z[\mix][4].set(\level, -8.dbamp, \pan, 0.4);
-	z[\mix][5].set(\level, -10.dbamp, \pan, -0.8);
-	z[\mix][6].set(\level, -10.dbamp, \pan, 0.8);
+	z[\mix][3].set(\level, -6.dbamp, \pan, -0.4);
+	z[\mix][4].set(\level, -6.dbamp, \pan, 0.4);
+	z[\mix][5].set(\level, -6.dbamp, \pan, -0.8);
+	z[\mix][6].set(\level, -6.dbamp, \pan, 0.8);
 
 	1.wait;
 
@@ -227,7 +232,12 @@ Routine {
 	///////////////
 	/// visualization / control
 
-	/// TODO
+	/// TODO..
+
+	// simplest display of busses
+	~bscope = Bus.new('audio', b[\src][0].index, 8, s);
+	{ ~bscope.scope; }.defer;
+
 
 
 

@@ -53,7 +53,7 @@ Routine {
 		// c = multiplier
 		// b = offset
 		// y = output
-		var y = (env * \c.kr(1.0)) + \b.kr(0.0);
+		var y = ((env * \c.kr(1.0)) + \b.kr(0.0)).min(1.0);
 
 		Out.ar(\out.kr(0), y);
 		// env.poll;
@@ -62,14 +62,14 @@ Routine {
 	// oscillator node
 	SynthDef.new(\ehe_osc, {
 		// TODO: we'll work on making this substantially more interesting:
-		// - harmonic content (waveshaping, etc)
-		// - drift? [added, but maybe chaotic function is better]
+		// - harmonic content (waveshaping, etc) [added phase modulation feedback]
+		// - drift? [added, but maybe not right yet]
 		// - hiss/noise?
 		// - FM matrix?
 
 		var drift = LFNoise2.kr(\drift_rate.kr(0.01), \drift_st.kr(0.07));
 		var fb_drift = LFNoise2.kr(\fb_drift_rate.kr(0.01));
-		var feedback = \feedback.kr(2/7) * fb_drift.max(\fb_floor.kr(0.0));
+		var feedback = \feedback.kr(3/7) * fb_drift.max(\fb_floor.kr(0.07));
 		var osc = SinOscFB.ar(\hz.kr(48) * K2A.ar(drift.midiratio), feedback);
 		Out.ar(\out.kr(0), osc * \amp.kr(0.1));
 	}).send(s);
@@ -78,8 +78,6 @@ Routine {
 	SynthDef.new(\ehe_vca, {
 		var level = K2A.ar(\level.kr(0).lag(1));
 		var mod = In.ar(\mod.kr(1));
-		// var floor = K2A.ar(\levelFloor.kr(0).lag(1));
-		// var gain =  Lag.ar(level * (mod.max(floor)), 1);
 		var gain = level * mod;
 		Out.ar(\out.kr(0), In.ar(\in.kr(0)) * gain);
 	}).send(s);
@@ -104,14 +102,10 @@ Routine {
 	// ----------------------------------------------------------------
 	// ---- buffers
 
-	// postln("reading buffers...");
-	// ~buf = ~file_paths.collect({ arg path; Buffer.read(s, path); });
-	// s.sync;
-	// postln("done reading buffers");
 	~buf = ~file_paths.collect({ arg path;
 		var sf = SoundFile.new;
 		var startFrame;
-		//var buf;
+
 		sf.openRead(path);
 		postln("cueing soundfile: " );
 		path.postln;
@@ -122,9 +116,6 @@ Routine {
 		startFrame = ~start * sf.sampleRate;
 		sf.close;
 
-		// buf = Buffer.alloc(s, 262144, 1);
-		// buf.cueSoundFile(s, path, numChannels:1);
-		// buf
 		Buffer.cueSoundFile(s, path,
 			startFrame: startFrame,
 			numChannels:1, bufferSize: 262144);
@@ -213,7 +204,6 @@ Routine {
 		z[\env][i].set(\gain, 24.dbamp, \c, 0.dbamp);
 	});
 
-
 	z[\mix][0].set(\level, -6.dbamp, \pan, 0);
 	z[\mix][1].set(\level, -6.dbamp, \pan, -0.2);
 	z[\mix][2].set(\level, -6.dbamp, \pan, 0.2);
@@ -228,10 +218,16 @@ Routine {
 		// FIXME: better / more efficient to have one VCA per osc,
 		// and a separate layer of connections from envs to vcas
 		z[\vca][i][i].set(\level, 1);
-		z[\vca][4][i].set(\level, 0.2);
-		z[\vca][5][i].set(\level, 0.2);
-		z[\vca][6][i].set(\level, 0.2);
 	});
+
+	z[\vca][4][0].set(\level, 0.5);
+	z[\vca][4][1].set(\level, 0.5);
+
+	z[\vca][5][1].set(\level, 0.5);
+	z[\vca][5][2].set(\level, 0.5);
+
+	z[\vca][6][2].set(\level, 0.5);
+	z[\vca][6][3].set(\level, 0.5);
 
 
 	///////////////

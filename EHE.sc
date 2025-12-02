@@ -4,8 +4,8 @@ EHE {
 
 	classvar playback_paths;
 
-	// starting position for playback, in minutes
-	classvar file_start = 2.5;
+	// starting position for playback, in seconds
+	classvar file_start = 180;
 
 	classvar hz_init_base = 48;
 
@@ -65,7 +65,6 @@ EHE {
 	init { arg aServer;
 		s =  aServer;
 
-
 		Routine {
 			EHE_defs.send(s);
 			s.sync;
@@ -82,17 +81,27 @@ EHE {
 				postln("frames: " ++ sf.numFrames);
 				postln("samplerate: " ++ sf.sampleRate);
 				startFrame = file_start * sf.sampleRate;
+				postln("startFrame: " ++ startFrame);
 				sf.close;
 
 				Buffer.cueSoundFile(s, path,
 					startFrame: startFrame,
-					numChannels:1, bufferSize: 262144);
+					numChannels:1,
+					bufferSize: 262144);
 			});
+			s.sync;
+
+			// { buf.do({ arg bf; bf.plot }) }.defer;
 
 
 			this.add_busses;
 			this.add_nodes;
+			s.sync;
+
 			this.init_params;
+
+			this.add_osc;
+			this.add_gui;
 
 		}.play;
 	}
@@ -118,6 +127,8 @@ EHE {
 
 		// per-oscillator VCA control inputs...
 		b[\vca_cv] = Array.fill(7, { Bus.audio(s, 1) });
+		b[\vca_cv_amp] = Array.fill(7, { Bus.audio(s, 1) });
+
 		// ... and modulated outputs...
 		b[\vca_out] = Array.fill(7, { Bus.audio(s, 1) });
 		// ... and amplitudes (for metering)
@@ -144,51 +155,86 @@ EHE {
 
 		// patches
 		g[\env_vca] = Group.before(g[\vca]);
-		g[\osc_vca] = Group.before(g[\vca]);
-		g[\output] = Group.after(g[\vca]);
+		g[\vca_vca] = Group.before(g[\vca]);
+		g[\mix] = Group.after(g[\vca]);
+
+		// k-rate monitoring
+		g[\kr] = Group.tail(s);
 
 		// --- synths
 		z = Event.new;
 
 		// input
 		z[\src] = Array.fill(4, { arg i;
+			buf[i].postln;
+			// { buf[i].inspect; }.defer;
 			Synth.new(\ehe_playback, [
 				\out, b[\src][i].index,
 				\buf, buf[i].bufnum
-			], target:g[\input]
+			], target:g[\input])
+		});
 
 		// oscillators
 		z[\osc] = Array.fill(7, { arg i;
 			Synth.new(\ehe_osc, [
 				\out, b[\osc][i].index,
 				\hz, hz_init[i]
-			], addAction:\addToTail);
+			], target:g[\osc]);
 		});
 
 		// envelope followers
 		z[\env] = Array.fill(4, { arg i; Synth.new(\ehe_env, [
 			\out, b[\env][i].index,
 			\in, b[\src][i].index
-		], addAction:\addToTail);
+		], target:g[\env]);
 		});
 
 		// VCA matrix
+		// z[\vca] = Array.fill(7, { arg i;
+		// 	Array.fill(4, { arg j;
+		// 		Synth.new(\ehe_vca, [
+		// 			\out, b[\osc_mod][i],
+		// 			\in, b[\osc][i].index,
+		// 			\mod, b[\env][j].index
+		// 		], addAction:\addToTail);
+		// 	})
+		// });
+
 		z[\vca] = Array.fill(7, { arg i;
-			Array.fill(4, { arg j;
-				Synth.new(\ehe_vca, [
-					\out, b[\osc_mod][i],
-					\in, b[\osc][i].index,
-					\mod, b[\env][j].index
-				], addAction:\addToTail);
-			})
+			Synth.new(\ehe_vca, [
+				\out, b[\vca_out][i],
+				\in, b[\osc][i].index,
+				\mod, b[\vca_cv][i].index
+			], target:g[\vca]);
+		});
+
+
+		// patch cables from envelopes to VCA CV inputs
+		z[\env_vca] = Array.fill(4, { arg i;
+			Array.fill(7, { arg j;
+				Synth.new(\ehe_patch, [
+					\out, b[\vca_cv][j].index,
+					\in, b[\env][i].index,
+				], target:g[\env_vca]);
+			});
+		});
+
+		// patch cables from oscillators to VCA CV inputs
+		z[\vca_vca] = Array.fill(7, { arg i;
+			Array.fill(7, { arg j;
+				Synth.new(\ehe_patch_delay, [
+					out: b[\vca_cv][j].index,
+					in: b[\vca_out][i].index,
+				], target:g[\vca_vca]);
+			});
 		});
 
 		// output level/pan
 		z[\mix] = Array.fill(7, { arg i;
 			Synth.new(\ehe_mix, [
 				\out, b[\mix].index,
-				\in, b[\osc_mod][i].index
-			], addAction:\addToTail)
+				\in, b[\vca_out][i].index
+			], target:g[\mix]);
 		});
 
 		// final output patch
@@ -196,14 +242,13 @@ EHE {
 			Out.ar(0, In.ar(b[\mix].index, 2));
 		}.play(s, addAction:\addToTail);
 
+		{ b[\src][0].scope }.defer;
 	}
-
 
 
 	//-----------------------------------------------------------------
 	// ---- initial settings
 	init_params {
-
 
 		4.do({ arg i;
 			z[\env][i].set(\gain, 24.dbamp, \c, 0.dbamp);
@@ -219,20 +264,35 @@ EHE {
 
 		1.wait;
 
-		4.do({ arg i;
-			// FIXME: better / more efficient to have one VCA per osc,
-			// and a separate layer of connections from envs to vcas
-			z[\vca][i][i].set(\level, 1);
-		});
 
-		z[\vca][4][0].set(\level, 0.5);
-		z[\vca][4][1].set(\level, 0.5);
+		//--- patch levels
 
-		z[\vca][5][1].set(\level, 0.5);
-		z[\vca][5][2].set(\level, 0.5);
+		// direct env to osc for the first 4 oscs
+		z[\env_vca][0][0].set(\c, 1);
+		z[\env_vca][1][1].set(\c, 1);
+		z[\env_vca][2][2].set(\c, 1);
+		z[\env_vca][3][3].set(\c, 1);
 
-		z[\vca][6][2].set(\level, 0.5);
-		z[\vca][6][3].set(\level, 0.5);
+		// for last 3 oscs, 1x direct (scaled) and 3x inverting connections
+
+		//z[\env_vca][0][4].set(\c, -0.5);
+		z[\vca_vca][0][4].set(\c, 0.5);
+		z[\env_vca][1][4].set(\c, -0.5);
+		z[\env_vca][2][4].set(\c, -0.5);
+		z[\env_vca][3][4].set(\c, -0.5);
+
+		z[\env_vca][0][5].set(\c, -0.5);
+		// z[\env_vca][1][5].set(\c, -0.5);
+		z[\vca_vca][1][5].set(\c, 0.5);
+		z[\env_vca][2][5].set(\c, -0.5);
+		z[\env_vca][3][5].set(\c, -0.5);
+
+		z[\env_vca][0][6].set(\c, -0.5);
+		z[\env_vca][1][6].set(\c, -0.5);
+		//z[\env_vca][2][6].set(\c, -0.5);
+		z[\vca_vca][2][6].set(\c, 0.5);
+		z[\env_vca][3][6].set(\c, -0.5);
+
 	}
 
 
@@ -242,6 +302,10 @@ EHE {
 	add_osc {
 
 		// internal envelope responders:
+	}
+
+	add_gui {
+		// TODO
 	}
 
 }
@@ -306,7 +370,7 @@ EHE_defs {
 		SynthDef.new(\ehe_vca, {
 			var level = K2A.ar(\level.kr(0).lag(1));
 			var mod = In.ar(\mod.kr(1));
-			var gain = level * mod;
+			var gain = level * mod.softclip;
 			Out.ar(\out.kr(0), In.ar(\in.kr(0)) * gain);
 		}).send(s);
 
@@ -319,27 +383,27 @@ EHE_defs {
 			var lag = \lag.kr(0.1);
 			a = a.min(1).max(0);
 			c = c.min(1).max(-1);
-			a = Lag.ar(a, lag);
-			c = Lag.ar(c, lag);
+			a = Lag.kr(a, lag);
+			c = Lag.kr(c, lag);
 			x = (x * c) + a;
 			Out.ar(\out.kr, x);
-		});
+		}).send(s);
 
-		// inverting / attenuating / delaying patch cable
+		// inverting / attenuating / delaying patch cable (for feedback)
 		SynthDef.new(\ehe_patch_delay,{
 			var c = \c.kr;
-			var x = In.ar(\in.kr);
+			var x = InFeedback.ar(\in.kr);
 			// scaled offset when inverting
 			var a = (c < 0) * (c * -1);
 			var lag = \lag.kr(0.1);
 			a = a.min(1).max(0);
 			c = c.min(1).max(-1);
-			a = Lag.ar(a, lag);
-			c = Lag.ar(c, lag);
+			// a = Lag.ar(a, lag);
+			// c = Lag.ar(c, lag);
 			x = (x * c) + a;
 			x = BufDelayL.ar(LocalBuf(s.sampleRate * 0.1), x, \delay.kr(0.09).min(0.099));
 			Out.ar(\out.kr, x);
-		});
+		}).send(s);
 
 		// output mix / pan node
 		SynthDef.new(\ehe_mix, {
@@ -352,7 +416,8 @@ EHE_defs {
 		SynthDef.new(\ehe_playback, {
 			var buf = \buf.kr;
 			var snd = DiskIn.ar(1, buf, loop:\loop.kr(1));
-			Out.ar(\out.kr(0), snd);
+			// Amplitude.kr(snd).ampdb.poll;
+			Out.ar(\out.kr(0), snd * \level.kr(1));
 		}).send(s);
 
 		// utility: downsample AR bus to KR
@@ -367,4 +432,18 @@ EHE_defs {
 	}
 
 
+}
+
+//-----------------------------------------------------------------
+// ---- GUI
+
+EHE_gui {
+	var <w;
+
+	*new { ^super.new.init;}
+
+	init {
+		w = Window.new("EHE", Rect(100, 100, 400, 300));
+		w.front;
+	}
 }

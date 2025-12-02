@@ -13,17 +13,19 @@ EHE {
 
 	//--------------
 
-	classvar ehe; // singleton instance
+	classvar <ehe; // singleton instance
 
-	var s; // server
+	var <s; // server
 
-	var b; // busses
+	var <b; // busses
 
-	var z; // synths
+	var <g;  // groups
 
-	var d; // data
+	var <z; // synths
 
-	var buf;
+	var <d; // data
+
+	var <buf;
 
 	*initClass {
 
@@ -89,7 +91,7 @@ EHE {
 
 
 			this.add_busses;
-			this.add_synths;
+			this.add_nodes;
 			this.init_params;
 
 		}.play;
@@ -105,38 +107,57 @@ EHE {
 
 		// input: 4x mono
 		b[\src] = Array.fill(4, { Bus.audio(s, 1) });
-		// 4.do({ arg i; { b[\src][i].scope }.defer; });
 
 		// envelopes: 4x mono
-		// (could be made control-rate)
 		b[\env] = Array.fill(4, { Bus.audio(s, 1) });
+		// control-rate copies (for metering)
+		b[\env_kr] = Array.fill(4, { Bus.control(s, 1) });
 
 		// oscillators: 7x mono
 		b[\osc] = Array.fill(7, { Bus.audio(s, 1) });
 
-		// modulated and summed oscillators
-		b[\osc_mod] = Array.fill(7, { Bus.audio(s, 1) });
+		// per-oscillator VCA control inputs...
+		b[\vca_cv] = Array.fill(7, { Bus.audio(s, 1) });
+		// ... and modulated outputs...
+		b[\vca_out] = Array.fill(7, { Bus.audio(s, 1) });
+		// ... and amplitudes (for metering)
+		b[\vca_out_amp] = Array.fill(7, { Bus.control(s, 1) });
 
-		// output: single stereo bus
+		// final output: single stereo bus
 		b[\mix] = Bus.audio(s, 2);
 	}
 
 
 	//-----------------------------------------------------------------
-	// ---- create synth nodes
+	// ---- create synth and group nods
 
-	add_synths {
+	add_nodes {
+
+		// --- groups
+		g = Event.new;
+
+		// sources and processors
+		g[\input] = Group.new;
+		g[\env] = Group.after(g[\input]);
+		g[\osc] = Group.after(g[\env]);
+		g[\vca] = Group.after(g[\osc]);
+
+		// patches
+		g[\env_vca] = Group.before(g[\vca]);
+		g[\osc_vca] = Group.before(g[\vca]);
+		g[\output] = Group.after(g[\vca]);
+
+		// --- synths
 		z = Event.new;
 
-		// input synths
+		// input
 		z[\src] = Array.fill(4, { arg i;
 			Synth.new(\ehe_playback, [
 				\out, b[\src][i].index,
 				\buf, buf[i].bufnum
-			], addAction:\addToHead);
-		});
+			], target:g[\input]
 
-		// oscillator synths
+		// oscillators
 		z[\osc] = Array.fill(7, { arg i;
 			Synth.new(\ehe_osc, [
 				\out, b[\osc][i].index,
@@ -144,14 +165,14 @@ EHE {
 			], addAction:\addToTail);
 		});
 
-		// envelope follower synths
+		// envelope followers
 		z[\env] = Array.fill(4, { arg i; Synth.new(\ehe_env, [
 			\out, b[\env][i].index,
 			\in, b[\src][i].index
 		], addAction:\addToTail);
 		});
 
-		// VCA matrix synths
+		// VCA matrix
 		z[\vca] = Array.fill(7, { arg i;
 			Array.fill(4, { arg j;
 				Synth.new(\ehe_vca, [
@@ -176,8 +197,6 @@ EHE {
 		}.play(s, addAction:\addToTail);
 
 	}
-
-
 
 
 
@@ -222,6 +241,7 @@ EHE {
 	// ---- OSC bindings / responders
 	add_osc {
 
+		// internal envelope responders:
 	}
 
 }
@@ -301,6 +321,23 @@ EHE_defs {
 			c = c.min(1).max(-1);
 			a = Lag.ar(a, lag);
 			c = Lag.ar(c, lag);
+			x = (x * c) + a;
+			Out.ar(\out.kr, x);
+		});
+
+		// inverting / attenuating / delaying patch cable
+		SynthDef.new(\ehe_patch_delay,{
+			var c = \c.kr;
+			var x = In.ar(\in.kr);
+			// scaled offset when inverting
+			var a = (c < 0) * (c * -1);
+			var lag = \lag.kr(0.1);
+			a = a.min(1).max(0);
+			c = c.min(1).max(-1);
+			a = Lag.ar(a, lag);
+			c = Lag.ar(c, lag);
+			x = (x * c) + a;
+			x = BufDelayL.ar(LocalBuf(s.sampleRate * 0.1), x, \delay.kr(0.09).min(0.099));
 			Out.ar(\out.kr, x);
 		});
 
@@ -315,9 +352,18 @@ EHE_defs {
 		SynthDef.new(\ehe_playback, {
 			var buf = \buf.kr;
 			var snd = DiskIn.ar(1, buf, loop:\loop.kr(1));
-			// Amplitude.kr(snd).poll;
 			Out.ar(\out.kr(0), snd);
 		}).send(s);
+
+		// utility: downsample AR bus to KR
+		SynthDef.new(\ehe_a2k, {
+			Out.kr(\out.kr, A2K.kr(In.ar(\in.kr)));
+		}).send(s);
+
+		// utility: basic amplitude follower for metering
+		SynthDef.new(\ehe_amp, {
+			Out.kr(\out.kr, Amplitude.kr(In.ar(\in.kr)));
+		});
 	}
 
 

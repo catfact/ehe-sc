@@ -5,7 +5,7 @@ EHE {
 	classvar playback_paths;
 
 	// starting position for playback, in seconds
-	classvar file_start = 180;
+	classvar file_start = 0;
 
 	classvar hz_init_base = 48;
 
@@ -239,7 +239,9 @@ EHE {
 
 		// final output patch
 		z[\out] = {
-			Out.ar(0, In.ar(b[\mix].index, 2));
+			var snd = In.ar(b[\mix].index, 2);
+			snd = snd * Line.kr(dur:10);
+			Out.ar(0, snd);
 		}.play(s, addAction:\addToTail);
 
 		{ b[\src][0].scope }.defer;
@@ -273,25 +275,23 @@ EHE {
 		z[\env_vca][2][2].set(\c, 1);
 		z[\env_vca][3][3].set(\c, 1);
 
-		// for last 3 oscs, 1x direct (scaled) and 3x inverting connections
+		// for last 3 oscs, 1x direct (scaled) feedvack connection,
+		// and 3x inverting env->osc connections
 
-		//z[\env_vca][0][4].set(\c, -0.5);
-		z[\vca_vca][0][4].set(\c, 0.5);
-		z[\env_vca][1][4].set(\c, -0.5);
-		z[\env_vca][2][4].set(\c, -0.5);
-		z[\env_vca][3][4].set(\c, -0.5);
+		z[\vca_vca][0][4].set(\c, 0.25);
+		z[\env_vca][1][4].set(\c, -0.125);
+		z[\env_vca][2][4].set(\c, -0.125);
+		z[\env_vca][3][4].set(\c, -0.125);
 
-		z[\env_vca][0][5].set(\c, -0.5);
-		// z[\env_vca][1][5].set(\c, -0.5);
-		z[\vca_vca][1][5].set(\c, 0.5);
-		z[\env_vca][2][5].set(\c, -0.5);
-		z[\env_vca][3][5].set(\c, -0.5);
+		z[\env_vca][0][5].set(\c, -0.125);
+		z[\vca_vca][1][5].set(\c, 0.25);
+		z[\env_vca][2][5].set(\c, -0.125);
+		z[\env_vca][3][5].set(\c, -0.125);
 
-		z[\env_vca][0][6].set(\c, -0.5);
-		z[\env_vca][1][6].set(\c, -0.5);
-		//z[\env_vca][2][6].set(\c, -0.5);
-		z[\vca_vca][2][6].set(\c, 0.5);
-		z[\env_vca][3][6].set(\c, -0.5);
+		z[\env_vca][0][6].set(\c, -0.125);
+		z[\env_vca][1][6].set(\c, -0.125);
+		z[\vca_vca][2][6].set(\c, 0.25);
+		z[\env_vca][3][6].set(\c, -0.125);
 
 	}
 
@@ -368,7 +368,7 @@ EHE_defs {
 
 		// VCA node
 		SynthDef.new(\ehe_vca, {
-			var level = K2A.ar(\level.kr(0).lag(1));
+			var level = K2A.ar(\level.kr(1).lag(1));
 			var mod = In.ar(\mod.kr(1));
 			var gain = level * mod.softclip;
 			Out.ar(\out.kr(0), In.ar(\in.kr(0)) * gain);

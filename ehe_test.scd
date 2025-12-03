@@ -21,6 +21,10 @@ e.b[\osc][4].scope;
 e.b[\osc][5].scope;
 e.b[\osc][6].scope;
 
+e.z[\vca_vca][0][4].set(\c, 16.dbamp);
+e.z[\vca_vca][1][5].set(\c, 16.dbamp);
+e.z[\vca_vca][2][6].set(\c, 16.dbamp);
+
 e.b[\vca_cv][0].scope;
 e.b[\vca_cv][1].scope;
 e.b[\vca_cv][2].scope;
@@ -31,6 +35,7 @@ e.b[\vca_cv][6].scope;
 
 e.b[\vca_out][0].scope;
 e.b[\vca_out][1].scope;
+
 e.b[\vca_out][2].scope;
 e.b[\vca_out][3].scope;
 e.b[\vca_out][4].scope;
@@ -54,6 +59,7 @@ e.z[\mix][5].set(\level, 1);
 e.z[\mix][6].set(\level, 1);
 
 b[\mix].scope;
+
 
 z[\osc].do({ arg osc; osc.set(\feedback, 2.0); });
 z[\osc].do({ arg osc; osc.set(\feedback, 4/7); });

@@ -36,13 +36,10 @@ EHE {
 			"Pipe horn 4.wav",
 		].collect({ arg filename; playback_dir.standardizePath ++ filename });
 
-
-
 		hz_init = hz_init_base * Array.series(7, 1, 1);
 
 		// randomize them a little :P
 		7.do({ arg i; hz_init[i] = (hz_init[i].cpsmidi + 0.14.rand2).midicps });
-
 
 		StartUp.add({
 			var s = Server.default;
@@ -51,7 +48,7 @@ EHE {
 				postln("EHE booted");
 				ehe = EHE.new(s);
 			}
-		});
+		 });
 	}
 
 	*new { arg aServer;
@@ -241,10 +238,11 @@ EHE {
 		z[\out] = {
 			var snd = In.ar(b[\mix].index, 2);
 			snd = snd * Line.kr(dur:10);
+			snd = snd.softclip;
 			Out.ar(0, snd);
 		}.play(s, addAction:\addToTail);
 
-		{ b[\src][0].scope }.defer;
+		// { b[\src][0].scope }.defer;
 	}
 
 
@@ -261,8 +259,8 @@ EHE {
 		z[\mix][2].set(\level, -6.dbamp, \pan, 0.2);
 		z[\mix][3].set(\level, -6.dbamp, \pan, -0.4);
 		z[\mix][4].set(\level, -6.dbamp, \pan, 0.4);
-		z[\mix][5].set(\level, -6.dbamp, \pan, -0.8);
-		z[\mix][6].set(\level, -6.dbamp, \pan, 0.8);
+		z[\mix][5].set(\level, -10.dbamp, \pan, -0.8);
+		z[\mix][6].set(\level, -10.dbamp, \pan, 0.8);
 
 		1.wait;
 
@@ -278,19 +276,20 @@ EHE {
 		// for last 3 oscs, 1x direct (scaled) feedvack connection,
 		// and 3x inverting env->osc connections
 
-		z[\vca_vca][0][4].set(\c, 0.25);
+		// e = EHE.ehe;
+		z[\vca_vca][0][4].set(\c, 0.85);
 		z[\env_vca][1][4].set(\c, -0.125);
 		z[\env_vca][2][4].set(\c, -0.125);
 		z[\env_vca][3][4].set(\c, -0.125);
 
 		z[\env_vca][0][5].set(\c, -0.125);
-		z[\vca_vca][1][5].set(\c, 0.25);
+		z[\vca_vca][1][5].set(\c, 0.85);
 		z[\env_vca][2][5].set(\c, -0.125);
 		z[\env_vca][3][5].set(\c, -0.125);
 
 		z[\env_vca][0][6].set(\c, -0.125);
 		z[\env_vca][1][6].set(\c, -0.125);
-		z[\vca_vca][2][6].set(\c, 0.25);
+		z[\vca_vca][2][6].set(\c, 0.85);
 		z[\env_vca][3][6].set(\c, -0.125);
 
 	}
@@ -437,13 +436,110 @@ EHE_defs {
 //-----------------------------------------------------------------
 // ---- GUI
 
+EHE_gui_mix_channel : View {
+	// sliders
+	var <sl_level, <sl_pan;
+	// numeric displays
+	var <num_level, <num_pan;
+
+	*new { arg parent, bounds, synth;
+		^super.new(parent, bounds).init(parent, bounds, synth);
+	}
+
+	init { arg parent, bounds, synth;
+		var w = bounds.width;
+		var h = bounds.height;
+
+		this.decorator = FlowLayout(bounds, 0@0, 0@0);
+
+		sl_pan = Slider(this, w@20);
+		h = h - 20;
+		num_pan = NumberBox(this, w@20);
+		h = h - 20;
+
+		sl_pan.action_({ arg sl;
+			var val = sl.value.linlin(0, 1, -1, 1);
+			num_pan.value = val;
+			synth.set(\pos, val)
+		});
+
+
+		sl_level = Slider(this, w@(h-20));
+		this.decorator.nextLine;
+		num_level = NumberBox(this, w@20);
+
+		sl_level.action_({ arg sl;
+			var val = sl.value;
+			if (val > 0.25, {
+				val = val.linlin(0.25, 1.0, 0.25.ampdb, 12).dbamp;
+			});
+			synth.set(\level, val);
+			num_level.value = val.ampdb;
+		});
+		sl_pan.value = 0.5;
+	}
+
+}
+
+EHE_gui_mod_channel : View {
+
+	// modulation levels from envelopes
+	var sl_env;
+	// modulation levels from VCAs
+	var sl_vca;
+
+	*new { arg parent, bounds, channel;
+		^super.new(parent, bounds).init(parent, bounds, channel);
+	}
+
+	init { arg parent, bounds, channel;
+		var w = bounds.width;
+		var h = bounds.height;
+
+		this.decorator = FlowLayout(bounds, 0@0, 0@0);
+
+		sl_env = Array.fill(4, { arg i;
+			Slider(this, w@20).action_({ arg sl;
+				var val = sl.value.linlin(0, 1, -2, 2);
+				EHE.ehe.z[\env_vca][i][channel].set(\c, val);
+			})
+		});
+
+		sl_vca = Array.fill(7, { arg i;
+			Slider(this, w@20).action_({ arg sl;
+				var val = sl.value.linlin(0, 1, -2, 2);
+				EHE.ehe.z[\vca_vca][i][channel].set(\c, val);
+			})
+		});
+
+	}
+}
+
 EHE_gui {
+	var <e;
 	var <w;
+
+	var <mix_channels;
+	var <mod_channels;
 
 	*new { ^super.new.init;}
 
 	init {
-		w = Window.new("EHE", Rect(100, 100, 400, 300));
+		e = EHE.ehe;
+
+		w = Window.new("EHE", Rect(100, 100, 800, 400));
 		w.front;
+		w.view.decorator = FlowLayout(w.view.bounds, 8@8, 8@8);
+
+		mix_channels = Array.fill(7, { arg i;
+			EHE_gui_mix_channel(w, Rect(0, 0, 80, 240), e.z[\mix][i]);
+		});
+		w.view.decorator.nextLine;
+
+
+		mod_channels = Array.fill(7, { arg i;
+			EHE_gui_mod_channel(w, Rect(0, 0, 80, 240), i);
+		});
+
 	}
 }

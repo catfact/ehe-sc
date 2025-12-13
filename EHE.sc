@@ -1,6 +1,8 @@
 EHE {
 
-	classvar playback_dir = "~/Desktop/earth_horns/2021\ recordings/";
+	classvar shouldAddToStartup = true;
+
+	classvar playback_dir = "~/Desktop/earth_horns/2021 recordings/";
 
 	classvar playback_paths;
 
@@ -14,6 +16,7 @@ EHE {
 	//--------------
 
 	classvar <ehe; // singleton instance
+	classvar <gui;
 
 	var <s; // server
 
@@ -41,14 +44,21 @@ EHE {
 		// randomize them a little :P
 		7.do({ arg i; hz_init[i] = (hz_init[i].cpsmidi + 0.14.rand2).midicps });
 
-		StartUp.add({
-			var s = Server.default;
+		if (shouldAddToStartup, {
+			StartUp.add({
+				var s = Server.default;
 
-			s.waitForBoot {
-				postln("EHE booted");
-				ehe = EHE.new(s);
-			}
-		 });
+				s.waitForBoot {
+					postln("EHE booted");
+					Routine {
+						ehe = EHE.new(s);
+						s.sync;
+						1.wait;
+						{ gui = EHE_gui.new; }.defer;
+					}.play;
+				}
+			});
+		});
 	}
 
 	*new { arg aServer;
@@ -114,25 +124,26 @@ EHE {
 		// input: 4x mono
 		b[\src] = Array.fill(4, { Bus.audio(s, 1) });
 
-		// envelopes: 4x mono
-		b[\env] = Array.fill(4, { Bus.audio(s, 1) });
-		// control-rate copies (for metering)
-		b[\env_kr] = Array.fill(4, { Bus.control(s, 1) });
-
 		// oscillators: 7x mono
 		b[\osc] = Array.fill(7, { Bus.audio(s, 1) });
 
+		// envelopes: 4x mono
+		b[\env] = Array.fill(4, { Bus.audio(s, 1) });
+
 		// per-oscillator VCA control inputs...
 		b[\vca_cv] = Array.fill(7, { Bus.audio(s, 1) });
-		b[\vca_cv_amp] = Array.fill(7, { Bus.audio(s, 1) });
 
-		// ... and modulated outputs...
+		// ...and modulated outputs
 		b[\vca_out] = Array.fill(7, { Bus.audio(s, 1) });
-		// ... and amplitudes (for metering)
-		b[\vca_out_amp] = Array.fill(7, { Bus.control(s, 1) });
 
 		// final output: single stereo bus
 		b[\mix] = Bus.audio(s, 2);
+
+
+		// control rate busses for metering
+		b[\env_kr] = Array.fill(4, { Bus.control(s, 1) });
+		b[\vca_cv_amp] = Array.fill(7, { Bus.control(s, 1) });
+		b[\vca_out_amp] = Array.fill(7, { Bus.control(s, 1) });
 	}
 
 
@@ -369,7 +380,8 @@ EHE_defs {
 		SynthDef.new(\ehe_vca, {
 			var level = K2A.ar(\level.kr(1).lag(1));
 			var mod = In.ar(\mod.kr(1));
-			var gain = level * mod.softclip;
+			//var gain = level * mod.softclip;
+			var gain = level * mod;
 			Out.ar(\out.kr(0), In.ar(\in.kr(0)) * gain);
 		}).send(s);
 
@@ -502,14 +514,14 @@ EHE_gui_mod_channel : View {
 			Slider(this, w@20).action_({ arg sl;
 				var val = sl.value.linlin(0, 1, -2, 2);
 				EHE.ehe.z[\env_vca][i][channel].set(\c, val);
-			})
+			}).value_(0.5)
 		});
 
 		sl_vca = Array.fill(7, { arg i;
 			Slider(this, w@20).action_({ arg sl;
 				var val = sl.value.linlin(0, 1, -2, 2);
 				EHE.ehe.z[\vca_vca][i][channel].set(\c, val);
-			})
+			}).value_(0.5)
 		});
 
 	}
@@ -521,15 +533,24 @@ EHE_gui {
 
 	var <mix_channels;
 	var <mod_channels;
+	var <tuning_nums;
 
 	*new { ^super.new.init;}
 
 	init {
 		e = EHE.ehe;
 
-		w = Window.new("EHE", Rect(100, 100, 800, 400));
+		w = Window.new("EHE", Rect(100, 100, 800, 600));
 		w.front;
 		w.view.decorator = FlowLayout(w.view.bounds, 8@8, 8@8);
+
+		tuning_nums = Array.fill(7, { arg i;
+			NumberBox(w, 80@20).action_({ arg numbox;
+				[numbox, numbox.value].postln;
+				EHE.ehe.z[\osc][i].set(\hz, numbox.value);
+			});
+		});
+		w.view.decorator.nextLine;
 
 		mix_channels = Array.fill(7, { arg i;
 			EHE_gui_mix_channel(w, Rect(0, 0, 80, 240), e.z[\mix][i]);

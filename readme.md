@@ -58,11 +58,11 @@ modulation sliders, like pan sliders, are bidirectional:
 
 in rough priority order:
 
-- add controls to introduce live input
 - add controls to seek to different parts of the recorded input
-- add OSC bindings for all controls
-- add a mono output switch
-- make visuals more appealing / easier to use
-- ... etc?
+- add preset import / export
+- add controls to introduce live input
+- visualize / scope signals
+- morph presets
+- control morph from MIDI
 
 and in parallel, of course, make any needed changes / refinements to the sound!

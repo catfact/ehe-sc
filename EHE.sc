@@ -152,7 +152,7 @@ EHE {
 		b[\vca_out_amp] = Array.fill(7, { Bus.control(s, 1) });
 
 		// wrapper busses for scoping
-		bscope = Event.new;
+		bscope = Event.new;4
 		[\src, \env, \vca_cv, \vca_out].do({ arg key;
 			var n = if((key == \src) || (key == \env), { 4 }, { 7 });
 			[key, n, key == \src].postln;
@@ -211,17 +211,6 @@ EHE {
 			\in, b[\src][i].index
 		], target:g[\env]);
 		});
-
-		// VCA matrix
-		// z[\vca] = Array.fill(7, { arg i;
-		// 	Array.fill(4, { arg j;
-		// 		Synth.new(\ehe_vca, [
-		// 			\out, b[\osc_mod][i],
-		// 			\in, b[\osc][i].index,
-		// 			\mod, b[\env][j].index
-		// 		], addAction:\addToTail);
-		// 	})
-		// });
 
 		z[\vca] = Array.fill(7, { arg i;
 			Synth.new(\ehe_vca, [
@@ -299,7 +288,7 @@ EHE {
 		z[\env_vca][2][2].set(\c, 1);
 		z[\env_vca][3][3].set(\c, 1);
 
-		// for last 3 oscs, 1x direct (scaled) feedvack connection,
+		// for last 3 oscs, 1x direct (scaled) feedback connection,
 		// and 3x inverting env->osc connections
 
 		// e = EHE.ehe;
@@ -346,8 +335,10 @@ EHE_defs {
 			var x = In.ar(\in.kr(0)); // * \g.kr(1);
 
 			/*
-		// this version is closer to serge patch (i think?)
-		// has the drawback of having little viaration if threshold isn't dialed exactly
+			// alternative using envelopes and trigger
+			// (i think it looked like serge patch did it sort of like this?)
+		// has little varation if threshold isn't dialed exactly
+			// (b/c maximum value doesn't vary)
 
 		// t = threshold
 		// a = attack

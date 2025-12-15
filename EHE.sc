@@ -1,17 +1,18 @@
 EHE {
 
-	classvar shouldAddToStartup = true;
+	classvar <shouldAddToStartup = true;
 
-	classvar playback_dir = "~/Desktop/earth_horns/2021 recordings/";
+	classvar <playback_dir = "~/Desktop/earth_horns/2021 recordings/";
 
-	classvar playback_paths;
+	classvar <playback_paths;
 
 	// starting position for playback, in seconds
-	classvar file_start = 0;
+	//	classvar file_start = 0;
 
-	classvar hz_init_base = 48;
+	classvar <file_start = 360;
 
-	classvar hz_init;
+	classvar <hz_init_base = 48;
+	classvar <hz_init;
 
 	//--------------
 
@@ -28,7 +29,9 @@ EHE {
 
 	var <d; // data
 
-	var <buf;
+	var <buf; // streaming buffer for disk input
+
+	var <bscope; // wrapper busses for scoping
 
 	*initClass {
 
@@ -43,6 +46,9 @@ EHE {
 
 		// randomize them a little :P
 		7.do({ arg i; hz_init[i] = (hz_init[i].cpsmidi + 0.14.rand2).midicps });
+
+		postln("EHE initClass");
+		postln("EHE shouldAddToStartup = " ++ shouldAddToStartup);
 
 		if (shouldAddToStartup, {
 			StartUp.add({
@@ -107,8 +113,8 @@ EHE {
 
 			this.init_params;
 
-			this.add_osc;
-			this.add_gui;
+			// this.add_osc;
+			// this.add_gui;
 
 		}.play;
 	}
@@ -121,11 +127,12 @@ EHE {
 
 		b = Event.new;
 
-		// input: 4x mono
-		b[\src] = Array.fill(4, { Bus.audio(s, 1) });
 
 		// oscillators: 7x mono
 		b[\osc] = Array.fill(7, { Bus.audio(s, 1) });
+
+		// input: 4x mono
+		b[\src] = Array.fill(4, { Bus.audio(s, 1) });
 
 		// envelopes: 4x mono
 		b[\env] = Array.fill(4, { Bus.audio(s, 1) });
@@ -139,11 +146,19 @@ EHE {
 		// final output: single stereo bus
 		b[\mix] = Bus.audio(s, 2);
 
-
 		// control rate busses for metering
 		b[\env_kr] = Array.fill(4, { Bus.control(s, 1) });
 		b[\vca_cv_amp] = Array.fill(7, { Bus.control(s, 1) });
 		b[\vca_out_amp] = Array.fill(7, { Bus.control(s, 1) });
+
+		// wrapper busses for scoping
+		bscope = Event.new;
+		[\src, \env, \vca_cv, \vca_out].do({ arg key;
+			var n = if((key == \src) || (key == \env), { 4 }, { 7 });
+			[key, n, key == \src].postln;
+			bscope[key] = Bus.new('audio', b[key][0].index, n);
+		});
+
 	}
 
 
@@ -310,13 +325,10 @@ EHE {
 	//-----------------------------------------------------------------
 	// ---- OSC bindings / responders
 	add_osc {
-
-		// internal envelope responders:
 	}
 
-	add_gui {
-		// TODO
-	}
+	//
+
 
 }
 

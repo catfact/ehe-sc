@@ -152,7 +152,7 @@ EHE {
 		b[\vca_out_amp] = Array.fill(7, { Bus.control(s, 1) });
 
 		// wrapper busses for scoping
-		bscope = Event.new;4
+		bscope = Event.new;
 		[\src, \env, \vca_cv, \vca_out].do({ arg key;
 			var n = if((key == \src) || (key == \env), { 4 }, { 7 });
 			[key, n, key == \src].postln;

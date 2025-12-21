@@ -1,5 +1,7 @@
 EHE {
 
+	classvar <numOscs = 8;
+
 	classvar <shouldAddToStartup = true;
 
 	classvar <playback_dir = "~/Desktop/earth_horns/2021 recordings/";
@@ -42,7 +44,7 @@ EHE {
 			"Pipe horn 4.wav",
 		].collect({ arg filename; playback_dir.standardizePath ++ filename });
 
-		hz_init = hz_init_base * Array.series(7, 1, 1);
+		hz_init = hz_init_base * Array.series(EHE.numOscs, 1, 1);
 
 		// randomize them a little :P
 		7.do({ arg i; hz_init[i] = (hz_init[i].cpsmidi + 0.14.rand2).midicps });
@@ -128,8 +130,8 @@ EHE {
 		b = Event.new;
 
 
-		// oscillators: 7x mono
-		b[\osc] = Array.fill(7, { Bus.audio(s, 1) });
+		// oscillators: Nx mono
+		b[\osc] = Array.fill(EHE.numOscs, { Bus.audio(s, 1) });
 
 		// input: 4x mono
 		b[\src] = Array.fill(4, { Bus.audio(s, 1) });
@@ -138,18 +140,18 @@ EHE {
 		b[\env] = Array.fill(4, { Bus.audio(s, 1) });
 
 		// per-oscillator VCA control inputs...
-		b[\vca_cv] = Array.fill(7, { Bus.audio(s, 1) });
+		b[\vca_cv] = Array.fill(EHE.numOscs, { Bus.audio(s, 1) });
 
 		// ...and modulated outputs
-		b[\vca_out] = Array.fill(7, { Bus.audio(s, 1) });
+		b[\vca_out] = Array.fill(EHE.numOscs, { Bus.audio(s, 1) });
 
 		// final output: single stereo bus
 		b[\mix] = Bus.audio(s, 2);
 
 		// control rate busses for metering
 		b[\env_kr] = Array.fill(4, { Bus.control(s, 1) });
-		b[\vca_cv_amp] = Array.fill(7, { Bus.control(s, 1) });
-		b[\vca_out_amp] = Array.fill(7, { Bus.control(s, 1) });
+		b[\vca_cv_amp] = Array.fill(EHE.numOscs, { Bus.control(s, 1) });
+		b[\vca_out_amp] = Array.fill(EHE.numOscs, { Bus.control(s, 1) });
 
 		// wrapper busses for scoping
 		// bscope = Event.new;
@@ -198,7 +200,7 @@ EHE {
 		});
 
 		// oscillators
-		z[\osc] = Array.fill(7, { arg i;
+		z[\osc] = Array.fill(EHE.numOscs, { arg i;
 			Synth.new(\ehe_osc, [
 				\out, b[\osc][i].index,
 				\hz, hz_init[i]
@@ -212,7 +214,7 @@ EHE {
 		], target:g[\env]);
 		});
 
-		z[\vca] = Array.fill(7, { arg i;
+		z[\vca] = Array.fill(EHE.numOscs, { arg i;
 			Synth.new(\ehe_vca, [
 				\out, b[\vca_out][i],
 				\in, b[\osc][i].index,
@@ -232,7 +234,7 @@ EHE {
 		});
 
 		// patch cables from oscillators to VCA CV inputs
-		z[\vca_vca] = Array.fill(7, { arg i;
+		z[\vca_vca] = Array.fill(EHE.numOscs, { arg i;
 			Array.fill(7, { arg j;
 				Synth.new(\ehe_patch_delay, [
 					out: b[\vca_cv][j].index,
@@ -242,24 +244,36 @@ EHE {
 		});
 
 		// output level/pan
-		z[\mix] = Array.fill(7, { arg i;
+		z[\mix] = Array.fill(EHE.numOscs, { arg i;
 			Synth.new(\ehe_mix, [
 				\out, b[\mix].index,
 				\in, b[\vca_out][i].index
 			], target:g[\mix]);
 		});
 
-		// final output patch
+		// final output patch (synth)
 		z[\out] = {
 			var snd = In.ar(b[\mix].index, 2);
 			snd = snd * Line.kr(dur:10);
+			snd = snd * \level.kr(1).lag(1);
 			snd = snd.softclip;
 			Out.ar(0, snd);
 		}.play(s, addAction:\addToTail);
 
+		// source monitor synths
+		g[\monitor] = Group.tail(s);
+		z[\monitor] = Array.fill(4, {  arg i;
+			Synth.new(\ehe_mix, [
+				\in, b[\src][i].index,
+				\out, 0,
+				\level, 0,
+				\pos, i.linlin(0, 3, -0.6, 0.6),
+			], g[\monitor])
+		});
+
+
 		// { b[\src][0].scope }.defer;
 	}
-
 
 	//-----------------------------------------------------------------
 	// ---- initial settings
@@ -309,13 +323,12 @@ EHE {
 
 	}
 
-	//-----------------------------------------------------------------
-	// ---- OSC bindings / responders
-	add_osc {
+	seek_playback {
+		arg sec;
+		4.do({ arg i;
+			buf[i].cueSoundFile(EHE.playback_paths[i], sec * s.sampleRate);
+		});
 	}
-
-	//
-
 
 }
 
@@ -417,7 +430,7 @@ EHE_defs {
 			Out.ar(\out.kr, x);
 		}).send(s);
 
-		// output mix / pan node
+		// output mix / pan node (mono -> stereo)
 		SynthDef.new(\ehe_mix, {
 			var level = Lag.kr(\level.kr(0), \level_lag.kr(1));
 			var pos = Lag.kr(\pos.kr(0), \pos_lag.kr(1));
@@ -441,8 +454,8 @@ EHE_defs {
 		SynthDef.new(\ehe_amp, {
 			Out.kr(\out.kr, Amplitude.kr(In.ar(\in.kr)));
 		});
-	}
 
+	}
 
 }
 
@@ -517,7 +530,7 @@ EHE_gui_mod_channel : View {
 			}).value_(0.5)
 		});
 
-		sl_vca = Array.fill(7, { arg i;
+		sl_vca = Array.fill(EHE.numOscs, { arg i;
 			Slider(this, w@20).action_({ arg sl;
 				var val = sl.value.linlin(0, 1, -2, 2);
 				EHE.ehe.z[\vca_vca][i][channel].set(\c, val);
@@ -527,10 +540,17 @@ EHE_gui_mod_channel : View {
 	}
 }
 
+EHE_gui_labels : View {
+
+}
+
 EHE_gui {
 	var <e;
 	var <w;
 	var <wscope;
+
+	var <labels; // labels container view
+	var <ui; // ui widgets container view
 
 	var <mix_channels;
 	var <mod_channels;
@@ -541,38 +561,89 @@ EHE_gui {
 	init {
 		e = EHE.ehe;
 
-		w = Window.new("EHE", Rect(100, 100, 800, 600));
+		w = Window.new("EHE", Rect(100, 100, 860, 640));
 		w.front;
-		w.view.decorator = FlowLayout(w.view.bounds, 8@8, 8@8);
+		w.view.decorator = FlowLayout(w.view.bounds, 0@0, 0@0);
 
-		tuning_nums = Array.fill(7, { arg i;
-			NumberBox(w, 80@20).action_({ arg numbox;
+		labels = View.new(w, 120@600);
+		labels.decorator = FlowLayout(w.view.bounds, 0@0, 0@0);
+		this.add_labels(labels);
+
+		ui = View.new(w, 700@600);
+		ui.decorator = FlowLayout(w.view.bounds, 0@0, 0@0);
+
+		tuning_nums = Array.fill(EHE.numOscs, { arg i;
+			NumberBox(ui, 80@20).action_({ arg numbox;
 				[numbox, numbox.value].postln;
 				EHE.ehe.z[\osc][i].set(\hz, numbox.value);
 			});
 		});
-		w.view.decorator.nextLine;
+		ui.decorator.nextLine;
 
-		mix_channels = Array.fill(7, { arg i;
-			EHE_gui_mix_channel(w, Rect(0, 0, 80, 240), e.z[\mix][i]);
+		mix_channels = Array.fill(EHE.numOscs, { arg i;
+			EHE_gui_mix_channel(ui, Rect(0, 0, 80, 240), e.z[\mix][i]);
 		});
-		w.view.decorator.nextLine;
+		ui.decorator.nextLine;
 
 
-		mod_channels = Array.fill(7, { arg i;
-			EHE_gui_mod_channel(w, Rect(0, 0, 80, 240), i);
+		mod_channels = Array.fill(EHE.numOscs, { arg i;
+			EHE_gui_mod_channel(ui, Rect(0, 0, 80, 240), i);
 		});
 
 		wscope = Event.new;
 		[\src, \env, \vca_cv, \vca_out].do({ arg k;
-//			k.postln;
-			var nchan = if((k == \src) || (k == \env), { 4 }, { 7 });
+			var nchan = if((k == \src) || (k == \env), { 4 }, { EHE.numOscs });
 			{
 				wscope[k] = Stethoscope.new(index: e.b[k][0].index, numChannels:nchan);
 				wscope[k].window.name_(k.asString);
 			}.defer;
 		});
+	}
+
+	add_labels { arg v;
+		var h = 20;
+		var w = v.bounds.width;
+		StaticText(v, w@h).string_("frequency Hz");
+		v.decorator.nextLine;
+		StaticText(v, w@h).string_("pan position");
+		v.decorator.nextLine;
+		StaticText(v, w@h).string_("");
+		v.decorator.nextLine;
+
+		StaticText(v, w@h).string_("osc level");
+		v.decorator.nextLine;
+
+		//////// spacer
+		StaticText(v, w@180).string_("");
+		v.decorator.nextLine;
+		/////////
+
+		StaticText(v, w@h).string_("env 1 -> osc N");
+		v.decorator.nextLine;
+		StaticText(v, w@h).string_("env 2 -> osc N");
+		v.decorator.nextLine;
+		StaticText(v, w@h).string_("env 3 -> osc N");
+		v.decorator.nextLine;
+		StaticText(v, w@h).string_("env 4 -> osc N");
+		v.decorator.nextLine;
+		StaticText(v, w@h).string_("osc 1 -> osc N");
+		v.decorator.nextLine;
+		StaticText(v, w@h).string_("osc 2 -> osc N");
+		v.decorator.nextLine;
+		StaticText(v, w@h).string_("osc 3 -> osc N");
+		v.decorator.nextLine;
+		StaticText(v, w@h).string_("osc 4 -> osc N");
+		v.decorator.nextLine;
+		StaticText(v, w@h).string_("osc 5 -> osc N");
+		v.decorator.nextLine;
+		StaticText(v, w@h).string_("osc 6 -> osc N");
+		v.decorator.nextLine;
+		StaticText(v, w@h).string_("osc 7 -> osc N");
+		v.decorator.nextLine;
+		StaticText(v, w@h).string_("osc 8 -> osc N");
+		v.decorator.nextLine;
 
 
+		
 	}
 }

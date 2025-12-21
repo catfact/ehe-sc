@@ -1,4 +1,5 @@
-// morph between parameter states
+////////////////////////////////////////////////////////////////////////
+// parameter state representation and I/O
 EHE_state {
 
 	// a state is a flat associative collection
@@ -43,7 +44,7 @@ EHE_state {
 		});
 	}
 
-	*apply_state { arg x, e, gui;
+	*apply_state { arg x, e; //, gui;
 		var noscs = EHE.numOscs;
 
 		noscs.do({ arg i;
@@ -51,31 +52,31 @@ EHE_state {
 
 			k = ("freq_"++(i+1)).asSymbol;
 			e.z[\osc][i].set(\hz, x[k]);
-			gui.update_osc_freq(i, x[k]);
+			//gui.update_osc_freq(i, x[k]);
 
 			k = ("level_"++(i+1)).asSymbol;
 			e.z[\mix][i].set(\level, x[k]);
-			gui.update_osc_level(i, x[k]);
+			//gui.update_osc_level(i, x[k]);
 
 			k = ("pan_"++(i+1)).asSymbol;
 			e.z[\mix][i].set(\pos, x[k]);
-			gui.update_osc_pan(i, x[k]);
+			//gui.update_osc_pan(i, x[k]);
 
 			4.do({ arg j;
 				k = ("mod_env_"++(j+1)++"_"++(i+1)).asSymbol;
 				e.z[\env_vca][j][i].set(\c, x[k]);
-				gui.update_mod_env(i, j, x[k]);
+				//gui.update_mod_env(i, j, x[k]);
 			});
 
 			EHE.numOscs.do({ arg j;
 				k = ("mod_vca_"++(j+1)++"_"++(i+1)).asSymbol;
 				e.z[\vca_vca][j][i].set(\c, x[k]);
-				gui.update_mod_vca(i, j, x[k]);
+				// gui.update_mod_vca(i, j, x[k]);
 			});
 		});
 	}
 
-	*new_state_from_gui { 
+	*new_state_from_gui {
 		arg gui;
 		var state = Dictionary.new;
 		var noscs = EHE.numOscs;
@@ -92,50 +93,84 @@ EHE_state {
 
 			4.do({ arg j;
 				k = ("mod_env_"++(j+1)++"_"++(i+1)).asSymbol;
-				state[k] = gui.mod_channels[i].sl_env[j].value;
+				state[k] = gui.mod_channels[i].num_env[j].value;
 			});
 
 			EHE.numOscs.do({ arg j;
 				k = ("mod_vca_"++(j+1)++"_"++(i+1)).asSymbol;
-				state[k] = gui.mod_channels[i].sl_vca[j].value;
+				state[k] = gui.mod_channels[i].num_vca[j].value;
 			});
 		});
 		^state
 	}
 
-	*new_state_from_synth { arg e;
-	
+	// asynchronously populate state structure from running synth params
+	*new_state_from_synth { arg e, callback;
+
 		var state = Dictionary.new;
 		var noscs = EHE.numOscs;
-		noscs.do({ arg i;
-			var k;
+		Routine {
+			noscs.do({ arg i;
+				var k;
+				var c = Condition.new;
 
-			k = ("freq_"++(i+1)).asSymbol;
-			state[k] = e.z[\osc][i].get(\hz);
+				k = ("freq_"++(i+1)).asSymbol;
+				e.z[\osc][i].get(\hz, { arg val;
+					state[k] = val;
+					c.unhang;
+					// postln("unhung freq " ++ i);
+				});
+				c.hang;
 
-			k = ("level_"++(i+1)).asSymbol;
-			state[k] = e.z[\mix][i].get(\level);
-			k = ("pan_"++(i+1)).asSymbol;
-			state[k] = e.z[\mix][i].get(\pos);
+				k = ("level_"++(i+1)).asSymbol;
+				e.z[\mix][i].get(\level, { arg val;
+					state[k] = val;
+					c.unhang;
+					// postln("unhung level " ++ i);
+				});
+				c.hang;
 
-			4.do({ arg j;
-				k = ("mod_env_"++(j+1)++"_"++(i+1)).asSymbol;
-				state[k] = e.z[\env_vca][j][i].get(\c);
+				k = ("pan_"++(i+1)).asSymbol;
+				e.z[\mix][i].get(\pos, { arg val;
+					state[k] = val;
+					c.unhang;
+					// postln("unhung pan " ++ i);
+				});
+				c.hang;
+
+				4.do({ arg j;
+					k = ("mod_env_"++(j+1)++"_"++(i+1)).asSymbol;
+					e.z[\env_vca][j][i].get(\c, { arg val;
+						state[k] = val;
+						c.unhang;
+						// postln("unhung mod_env_vca " ++ j ++ " " ++ i);
+					});
+					c.hang;
+				});
+
+				EHE.numOscs.do({ arg j;
+					k = ("mod_vca_"++(j+1)++"_"++(i+1)).asSymbol;
+					e.z[\vca_vca][j][i].get(\c, { arg val;
+						state[k] = val;
+						c.unhang;
+						// postln("unhung mod_vca_vca " ++ j ++ " " ++ i);
+					});
+					c.hang;
+				});
 			});
-
-			EHE.numOscs.do({ arg j;
-				k = ("mod_vca_"++(j+1)++"_"++(i+1)).asSymbol;
-				state[k] = e.z[\vca_vca][j][i].get(\c);
-			});
-		});
-		^state
+			postln("all synth params retrieved; running callback");
+			callback.value(state);
+		}.play;
+		//^state
 	}
 
 	*write_state_to_file { arg state, path;
 		var file = File.new(path, "w");
 		var ks = state.keys.asArray.sort;
 		ks.do({ arg k;
-			file.writeLine(k.asString ++ " = " ++ state[k].asString ++ ";");
+			var str = "\\" ++ k.asString ++ ", " ++ state[k].asString ++ ", \n";
+			str.post;
+			file.write(str);
 		});
 		file.close;
 	}
@@ -143,21 +178,126 @@ EHE_state {
 	*read_state_from_file { arg path;
 		var state = Dictionary.new;
 		var file = File.new(path, "r");
-		while ({ file.eof.not }, {
-			var line = file.readLine;
-			var parts = line.split("=");
-			if (parts.size == 2, {
-				var k = parts[0].trim.asSymbol;
-				var v = parts[1].trim.dropRight(1).asFloat; // drop semicolon
-				state[k] = v;
+		var str = "[ " ++ file.readAllString ++ " ]";
+		// var line = file.getLine;
+		// while ({ line.notNil }, {
+		// 	var parts = line.split(",");
+		// 	if (parts.size == 2, {
+		// 		var k = parts[0].trim.asSymbol;
+		// 		var v = parts[1].trim.dropRight(1).asFloat; // drop comma
+		// 		state[k] = v;
+		// 	});
+		// 	line = file.getLine;
+		// });
+		file.close;
+		state = Dictionary.newFrom(str.interpret);
+		^state
+	}
+
+	*refresh_gui_from_state { arg gui, state;
+		{
+		var noscs = EHE.numOscs;
+		noscs.do({ arg i;
+			var k;
+
+			k = ("freq_"++(i+1)).asSymbol;
+			gui.update_osc_freq(i, state[k]);
+
+			k = ("level_"++(i+1)).asSymbol;
+			gui.update_osc_level(i, state[k]);
+
+			k = ("pan_"++(i+1)).asSymbol;
+			gui.update_osc_pan(i, state[k]);
+
+			4.do({ arg j;
+				k = ("mod_env_"++(j+1)++"_"++(i+1)).asSymbol;
+				gui.update_mod_env(i, j, state[k]);
+			});
+
+			EHE.numOscs.do({ arg j;
+				k = ("mod_vca_"++(j+1)++"_"++(i+1)).asSymbol;
+				gui.update_mod_vca(i, j, state[k]);
 			});
 		});
-		file.close;
-		^state
+		}.defer;
+
 	}
 
 }
 
+
+/////////////////////////////////////////////////////////////////////////
+// morph between parameter states
+
+EHE_state_morph {
+	var <>target;
+	var <>previous;
+	var <>current;
+
+	var <>t = 0.0;
+	var <>dt = 0.2;
+	var <>r = 0.01;
+
+	var <>isMorphing = false;
+
+	var rout;
+
+	*new_morphed_state { arg state_a, state_b, t;
+		var state = Dictionary.new;
+		var ks = state_a.keys.asArray;
+		ks.postln;
+		ks.do({ arg k;
+			var va = state_a[k];
+			var vb = state_b[k];
+			state[k] = va + ((vb - va) * t);
+		});
+		^state
+	}
+
+	init {
+		EHE_state.new_state_from_synth(EHE.ehe, { arg s;
+			previous = s;
+			current = previous;
+			EHE_state.refresh_gui_from_state(EHE.gui, s);
+			rout = Routine {
+				loop {
+					if (isMorphing, {
+						post("morphing t: " ++ t);
+						t = (t + (r*dt)).min(1.0);
+						postln(" -> " ++ t);
+						current = EHE_state_morph.new_morphed_state(previous, target, t);
+						if (t >= 1.0, {
+							isMorphing = false;
+							previous = current;
+							t = 0.0;
+						});
+						EHE_state.apply_state(current, EHE.ehe);
+						EHE_state.refresh_gui_from_state(EHE.gui, current);
+					});
+					dt.wait;
+				}
+			}.play;
+		});
+	}
+
+	morph_to { arg aTarget, rate=0.01;
+		target = aTarget;
+		if (isMorphing, {
+			previous = current;
+			t = 0;
+		});
+		isMorphing = true;
+	}
+
+	morph_to_file { arg path, rate=0.01;
+		var state = EHE_state.read_state_from_file(path);
+		this.r = rate;
+		this.morph_to(state);
+	}
+}
+
+////////////////////////////////////////////////////////////////////////
+// ---- main synth class!
 
 EHE {
 
@@ -205,7 +345,7 @@ EHE {
 		hz_init = hz_init_base * Array.series(EHE.numOscs, 1, 1);
 
 		// randomize them a little :P
-		7.do({ arg i; hz_init[i] = (hz_init[i].cpsmidi + 0.14.rand2).midicps });
+		EHE.numOscs.do({ arg i; hz_init[i] = (hz_init[i].cpsmidi + 0.14.rand2).midicps });
 
 		postln("EHE initClass");
 		postln("EHE shouldAddToStartup = " ++ shouldAddToStartup);
@@ -310,15 +450,6 @@ EHE {
 		b[\env_kr] = Array.fill(4, { Bus.control(s, 1) });
 		b[\vca_cv_amp] = Array.fill(EHE.numOscs, { Bus.control(s, 1) });
 		b[\vca_out_amp] = Array.fill(EHE.numOscs, { Bus.control(s, 1) });
-
-		// wrapper busses for scoping
-		// bscope = Event.new;
-		// [\src, \env, \vca_cv, \vca_out].do({ arg key;
-		// 	var n = if((key == \src) || (key == \env), { 4 }, { 7 });
-		// 	[key, n, key == \src].postln;
-		// 	bscope[key] = Bus.new('audio', b[key][0].index, n);
-		// });
-
 	}
 
 
@@ -383,7 +514,7 @@ EHE {
 
 		// patch cables from envelopes to VCA CV inputs
 		z[\env_vca] = Array.fill(4, { arg i;
-			Array.fill(7, { arg j;
+			Array.fill(EHE.numOscs, { arg j;
 				Synth.new(\ehe_patch, [
 					\out, b[\vca_cv][j].index,
 					\in, b[\env][i].index,
@@ -393,7 +524,7 @@ EHE {
 
 		// patch cables from oscillators to VCA CV inputs
 		z[\vca_vca] = Array.fill(EHE.numOscs, { arg i;
-			Array.fill(7, { arg j;
+			Array.fill(EHE.numOscs, { arg j;
 				Synth.new(\ehe_patch_delay, [
 					out: b[\vca_cv][j].index,
 					in: b[\vca_out][i].index,
@@ -441,13 +572,14 @@ EHE {
 			z[\env][i].set(\gain, 24.dbamp, \c, 0.dbamp);
 		});
 
-		z[\mix][0].set(\level, -6.dbamp, \pan, 0);
-		z[\mix][1].set(\level, -6.dbamp, \pan, -0.2);
-		z[\mix][2].set(\level, -6.dbamp, \pan, 0.2);
-		z[\mix][3].set(\level, -6.dbamp, \pan, -0.4);
-		z[\mix][4].set(\level, -6.dbamp, \pan, 0.4);
-		z[\mix][5].set(\level, -10.dbamp, \pan, -0.8);
-		z[\mix][6].set(\level, -10.dbamp, \pan, 0.8);
+		z[\mix][0].set(\level, -6.dbamp,  \pos, 0);
+		z[\mix][1].set(\level, -6.dbamp,  \pos, -0.2);
+		z[\mix][2].set(\level, -6.dbamp,  \pos, 0.2);
+		z[\mix][3].set(\level, -6.dbamp,  \pos, -0.4);
+		z[\mix][4].set(\level, -6.dbamp,  \pos, 0.4);
+		z[\mix][5].set(\level, -10.dbamp, \pos, -0.8);
+		z[\mix][6].set(\level, -10.dbamp, \pos, 0.8);
+		z[\mix][7].set(\level, -12.dbamp, \pos, 0);
 
 		1.wait;
 
@@ -478,6 +610,11 @@ EHE {
 		z[\env_vca][1][6].set(\c, -0.125);
 		z[\vca_vca][2][6].set(\c, 0.85);
 		z[\env_vca][3][6].set(\c, -0.125);
+
+		z[\env_vca][0][7].set(\c, -0.125);
+		z[\env_vca][1][7].set(\c, -0.125);
+		z[\vca_vca][2][7].set(\c, -0.125);
+		z[\env_vca][3][7].set(\c, 0.85);
 
 	}
 
@@ -652,10 +789,13 @@ EHE_gui_mix_channel : View {
 
 		sl_pan.action_({ arg sl;
 			var val = sl.value.linlin(0, 1, -1, 1);
-			num_pan.value = val;
-			synth.set(\pos, val)
+			num_pan.valueAction_(val);
 		});
-
+		num_pan.action_({ arg num;
+			var val = num.value;
+			synth.set(\pos, val);
+			sl_pan.value = val.linlin(-1, 1, 0, 1);
+		});
 
 		sl_level = Slider(this, w@(h-20));
 		this.decorator.nextLine;
@@ -666,20 +806,23 @@ EHE_gui_mix_channel : View {
 			if (val > 0.25, {
 				val = val.linlin(0.25, 1.0, 0.25.ampdb, 12).dbamp;
 			});
-			synth.set(\level, val);
-			num_level.value = val.ampdb;
+			num_level.valueAction_(val.ampdb);
 		});
-		sl_pan.value = 0.5;
+		num_level.action_({ arg num;
+			var val = num.value.dbamp;
+			synth.set(\level, val);
+		});
+
 	}
 
 }
 
 EHE_gui_mod_channel : View {
 	// modulation levels from envelopes
-	var sl_env;
+	var <sl_env;
 	var <num_env;
 	// modulation levels from VCAs
-	var sl_vca;
+	var <sl_vca;
 	var <num_vca;
 
 	classvar <slSpec;
@@ -742,6 +885,7 @@ EHE_gui {
 
 	var <labels; // labels container view
 	var <ui; // ui widgets container view
+	var <ui_main; // main / global controls container view
 
 	var <mix_channels;
 	var <mod_channels;
@@ -763,6 +907,9 @@ EHE_gui {
 		ui = View.new(w, 700@800);
 		ui.decorator = FlowLayout(w.view.bounds, 0@0, 0@0);
 
+		ui_main = View.new(w, 200@800);
+		ui_main.decorator = FlowLayout(w.view.bounds, 0@0, 0@0);
+
 		tuning_nums = Array.fill(EHE.numOscs, { arg i;
 			NumberBox(ui, 80@20).action_({ arg numbox;
 				[numbox, numbox.value].postln;
@@ -776,10 +923,11 @@ EHE_gui {
 		});
 		ui.decorator.nextLine;
 
-
 		mod_channels = Array.fill(EHE.numOscs, { arg i;
 			EHE_gui_mod_channel(ui, Rect(0, 0, 80, 500), i);
 		});
+
+
 
 		wscope = Event.new;
 		[\src, \env, \vca_cv, \vca_out].do({ arg k;
@@ -789,6 +937,8 @@ EHE_gui {
 				wscope[k].window.name_(k.asString);
 			}.defer;
 		});
+
+		^this
 	}
 
 	add_labels { arg v;
@@ -845,14 +995,18 @@ EHE_gui {
 
 	update_osc_level { arg osc_idx, level;
 		var db = level.ampdb;
-		mix_channels[osc_idx].sl_level.value = if (db <= 0.25.dbamp,
-			{ level.linlin(0.dbamp, 12.dbamp, 0, 1) },
-			{ level.dbamp.linlin(0.25.dbamp, 12.dbamp, 0.25, 1) }
-		);
+		var mindb = 0.25.ampdb;
+		if (db <= mindb, {
+			mix_channels[osc_idx].sl_level.value = level;
+		}, {
+			mix_channels[osc_idx].sl_level.value = db.linlin(mindb, 12, 0.25, 1);
+		});
+		mix_channels[osc_idx].num_level.value = db;
 	}
 
 	update_osc_pan { arg osc_idx, pos;
 		mix_channels[osc_idx].sl_pan.value = pos.linlin(-1, 1, 0, 1);
+		mix_channels[osc_idx].num_pan.value = pos;
 	}
 
 	update_mod_env { arg osc_idx, env_idx, val;

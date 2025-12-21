@@ -488,6 +488,13 @@ EHE {
 			], target:g[\input])
 		});
 
+		z[\adc] = Array.fill(4, { arg i;
+			Synth.new(\ehe_adc, [
+				\out, b[\src][i].index,
+				\in, i
+			], target:g[\input]);
+		});
+
 		// oscillators
 		z[\osc] = Array.fill(EHE.numOscs, { arg i;
 			Synth.new(\ehe_osc, [
@@ -750,6 +757,12 @@ EHE_defs {
 			Out.kr(\out.kr, Amplitude.kr(In.ar(\in.kr)));
 		});
 
+		// live input
+		SynthDef.new(\ehe_adc, {
+			var snd = SoundIn.ar(\in.kr(0));
+			Out.ar(\out.kr(0), snd * \level.kr(1));
+		}).send(s);
+
 	}
 
 }
@@ -927,14 +940,13 @@ EHE_gui {
 			EHE_gui_mod_channel(ui, Rect(0, 0, 80, 500), i);
 		});
 
-
-
 		wscope = Event.new;
-		[\src, \env, \vca_cv, \vca_out].do({ arg k;
+		[\src, \env, \vca_cv, \vca_out].do({ arg k, i;
 			var nchan = if((k == \src) || (k == \env), { 4 }, { EHE.numOscs });
 			{
 				wscope[k] = Stethoscope.new(index: e.b[k][0].index, numChannels:nchan);
 				wscope[k].window.name_(k.asString);
+				wscope[k].window.bounds_(Rect(150 + (i*40), 150 + (i*40), 600, 400));
 			}.defer;
 		});
 

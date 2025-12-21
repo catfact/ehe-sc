@@ -22,7 +22,7 @@ z = EHE_state.read_state_from_file(~p3);
 
 //z = EHE_state_morph.new_morphed_state(x, y, 0.5);
 
-m.r = 0.01;
+m.r = 0.1;
 m.t = 0;
 
 m.morph_to(x);

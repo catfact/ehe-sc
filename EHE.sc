@@ -31,7 +31,7 @@ EHE {
 
 	var <buf; // streaming buffer for disk input
 
-	var <bscope; // wrapper busses for scoping
+	//var <bscope; // wrapper busses for scoping
 
 	*initClass {
 
@@ -152,12 +152,12 @@ EHE {
 		b[\vca_out_amp] = Array.fill(7, { Bus.control(s, 1) });
 
 		// wrapper busses for scoping
-		bscope = Event.new;
-		[\src, \env, \vca_cv, \vca_out].do({ arg key;
-			var n = if((key == \src) || (key == \env), { 4 }, { 7 });
-			[key, n, key == \src].postln;
-			bscope[key] = Bus.new('audio', b[key][0].index, n);
-		});
+		// bscope = Event.new;
+		// [\src, \env, \vca_cv, \vca_out].do({ arg key;
+		// 	var n = if((key == \src) || (key == \env), { 4 }, { 7 });
+		// 	[key, n, key == \src].postln;
+		// 	bscope[key] = Bus.new('audio', b[key][0].index, n);
+		// });
 
 	}
 
@@ -308,8 +308,6 @@ EHE {
 		z[\env_vca][3][6].set(\c, -0.125);
 
 	}
-
-
 
 	//-----------------------------------------------------------------
 	// ---- OSC bindings / responders
@@ -497,7 +495,6 @@ EHE_gui_mix_channel : View {
 }
 
 EHE_gui_mod_channel : View {
-
 	// modulation levels from envelopes
 	var sl_env;
 	// modulation levels from VCAs
@@ -533,12 +530,13 @@ EHE_gui_mod_channel : View {
 EHE_gui {
 	var <e;
 	var <w;
+	var <wscope;
 
 	var <mix_channels;
 	var <mod_channels;
 	var <tuning_nums;
 
-	*new { ^super.new.init;}
+	*new { ^super.new.init; }
 
 	init {
 		e = EHE.ehe;
@@ -564,6 +562,17 @@ EHE_gui {
 		mod_channels = Array.fill(7, { arg i;
 			EHE_gui_mod_channel(w, Rect(0, 0, 80, 240), i);
 		});
+
+		wscope = Event.new;
+		[\src, \env, \vca_cv, \vca_out].do({ arg k;
+//			k.postln;
+			var nchan = if((k == \src) || (k == \env), { 4 }, { 7 });
+			{
+				wscope[k] = Stethoscope.new(index: e.b[k][0].index, numChannels:nchan);
+				wscope[k].window.name_(k.asString);
+			}.defer;
+		});
+
 
 	}
 }

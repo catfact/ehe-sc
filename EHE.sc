@@ -462,6 +462,15 @@ EHE_defs {
 //-----------------------------------------------------------------
 // ---- GUI
 
+EHE_gui_color {
+	// TODO
+	*env { arg idx;
+	}
+
+	*vca { arg idx;
+	}
+}
+
 EHE_gui_mix_channel : View {
 	// sliders
 	var <sl_level, <sl_pan;
@@ -510,8 +519,16 @@ EHE_gui_mix_channel : View {
 EHE_gui_mod_channel : View {
 	// modulation levels from envelopes
 	var sl_env;
+	var num_env;
 	// modulation levels from VCAs
 	var sl_vca;
+	var num_vca;
+
+	classvar <slSpec;
+
+	*initClass {
+		slSpec = ControlSpec.new(-2, 2);
+	}
 
 	*new { arg parent, bounds, channel;
 		^super.new(parent, bounds).init(parent, bounds, channel);
@@ -522,26 +539,42 @@ EHE_gui_mod_channel : View {
 		var h = bounds.height;
 
 		this.decorator = FlowLayout(bounds, 0@0, 0@0);
+		sl_env = Array.newClear(4);
+		num_env = Array.newClear(4);
+		sl_vca = Array.newClear(EHE.numOscs);
+		num_vca = Array.newClear(EHE.numOscs);
 
-		sl_env = Array.fill(4, { arg i;
-			Slider(this, w@20).action_({ arg sl;
-				var val = sl.value.linlin(0, 1, -2, 2);
+		4.do({ arg i;
+			sl_env[i] = Slider(this, w@20);
+			num_env[i] = NumberBox(this, w@20);
+			sl_env[i].action_({ arg sl;
+				//var val = sl.value.linlin(0, 1, -2, 2);
+				var val = slSpec.map(sl.value);
+				num_env[i].valueAction_(val);
+			}).value_(0.5);
+			num_env[i].action_({ arg num;
+				var val = num.value;
 				EHE.ehe.z[\env_vca][i][channel].set(\c, val);
-			}).value_(0.5)
+				sl_env[i].value = slSpec.unmap(val);
+			})
 		});
 
-		sl_vca = Array.fill(EHE.numOscs, { arg i;
-			Slider(this, w@20).action_({ arg sl;
-				var val = sl.value.linlin(0, 1, -2, 2);
+		EHE.numOscs.do({ arg i;
+			sl_vca[i] = Slider(this, w@20);
+			num_vca[i] = NumberBox(this, w@20);
+			sl_vca[i].action_({ arg sl;
+				//var val = sl.value.linlin(0, 1, -2, 2);
+				var val = slSpec.map(sl.value);
+				num_vca[i].valueAction_(val);
+			});
+			num_vca[i].action_({ arg num;
+				var val = num.value;
 				EHE.ehe.z[\vca_vca][i][channel].set(\c, val);
-			}).value_(0.5)
+				sl_vca[i].value = slSpec.unmap(val);
+			});
 		});
 
 	}
-}
-
-EHE_gui_labels : View {
-
 }
 
 EHE_gui {
@@ -561,15 +594,15 @@ EHE_gui {
 	init {
 		e = EHE.ehe;
 
-		w = Window.new("EHE", Rect(100, 100, 860, 640));
+		w = Window.new("EHE", Rect(100, 100, 1000, 800));
 		w.front;
 		w.view.decorator = FlowLayout(w.view.bounds, 0@0, 0@0);
 
-		labels = View.new(w, 120@600);
+		labels = View.new(w, 120@800);
 		labels.decorator = FlowLayout(w.view.bounds, 0@0, 0@0);
 		this.add_labels(labels);
 
-		ui = View.new(w, 700@600);
+		ui = View.new(w, 700@800);
 		ui.decorator = FlowLayout(w.view.bounds, 0@0, 0@0);
 
 		tuning_nums = Array.fill(EHE.numOscs, { arg i;
@@ -587,7 +620,7 @@ EHE_gui {
 
 
 		mod_channels = Array.fill(EHE.numOscs, { arg i;
-			EHE_gui_mod_channel(ui, Rect(0, 0, 80, 240), i);
+			EHE_gui_mod_channel(ui, Rect(0, 0, 80, 500), i);
 		});
 
 		wscope = Event.new;
@@ -603,6 +636,7 @@ EHE_gui {
 	add_labels { arg v;
 		var h = 20;
 		var w = v.bounds.width;
+		var h2 = h * 2;
 		StaticText(v, w@h).string_("frequency Hz");
 		v.decorator.nextLine;
 		StaticText(v, w@h).string_("pan position");
@@ -618,32 +652,32 @@ EHE_gui {
 		v.decorator.nextLine;
 		/////////
 
-		StaticText(v, w@h).string_("env 1 -> osc N");
+		StaticText(v, w@h2).string_("env 1 -> osc N");
 		v.decorator.nextLine;
-		StaticText(v, w@h).string_("env 2 -> osc N");
+		StaticText(v, w@h2).string_("env 2 -> osc N");
 		v.decorator.nextLine;
-		StaticText(v, w@h).string_("env 3 -> osc N");
+		StaticText(v, w@h2).string_("env 3 -> osc N");
 		v.decorator.nextLine;
-		StaticText(v, w@h).string_("env 4 -> osc N");
+		StaticText(v, w@h2).string_("env 4 -> osc N");
 		v.decorator.nextLine;
-		StaticText(v, w@h).string_("osc 1 -> osc N");
+		StaticText(v, w@h2).string_("osc 1 -> osc N");
 		v.decorator.nextLine;
-		StaticText(v, w@h).string_("osc 2 -> osc N");
+		StaticText(v, w@h2).string_("osc 2 -> osc N");
 		v.decorator.nextLine;
-		StaticText(v, w@h).string_("osc 3 -> osc N");
+		StaticText(v, w@h2).string_("osc 3 -> osc N");
 		v.decorator.nextLine;
-		StaticText(v, w@h).string_("osc 4 -> osc N");
+		StaticText(v, w@h2).string_("osc 4 -> osc N");
 		v.decorator.nextLine;
-		StaticText(v, w@h).string_("osc 5 -> osc N");
+		StaticText(v, w@h2).string_("osc 5 -> osc N");
 		v.decorator.nextLine;
-		StaticText(v, w@h).string_("osc 6 -> osc N");
+		StaticText(v, w@h2).string_("osc 6 -> osc N");
 		v.decorator.nextLine;
-		StaticText(v, w@h).string_("osc 7 -> osc N");
+		StaticText(v, w@h2).string_("osc 7 -> osc N");
 		v.decorator.nextLine;
-		StaticText(v, w@h).string_("osc 8 -> osc N");
+		StaticText(v, w@h2).string_("osc 8 -> osc N");
 		v.decorator.nextLine;
 
 
-		
+
 	}
 }

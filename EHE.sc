@@ -1,302 +1,4 @@
 ////////////////////////////////////////////////////////////////////////
-// parameter state representation and I/O
-EHE_state {
-
-	// a state is a flat associative collection
-	*new_state {
-		var state = Dictionary.new;
-
-
-		var noscs = EHE.numOscs;
-		//postln("num oscs: "  ++ noscs);
-		noscs.do({ arg i;
-			var k;
-
-
-			i.postln;
-
-			k = ("freq_"++(i+1)).asSymbol;
-			state[k] = EHE.hz_init[i];
-			k = ("level_"++(i+1)).asSymbol;
-			state[k] = 0;
-			k = ("pan_"++(i+1)).asSymbol;
-			state[k] = 0;
-
-			4.do({ arg j;
-				k = ("mod_env_"++(j+1)++"_"++(i+1)).asSymbol;
-				state[k] = 0;
-			});
-
-			EHE.numOscs.do({ arg j;
-				k = ("mod_vca_"++(j+1)++"_"++(i+1)).asSymbol;
-				state[k] = 0;
-			});
-		});
-
-		^state
-	}
-
-	*print_state { arg state;
-		var ks = state.keys.asArray.sort;
-		ks.do({ arg k;
-			//[k, state[k]].postln;
-			postln("x[\\"++k++"];");
-		});
-	}
-
-	*apply_state { arg x, e; //, gui;
-		var noscs = EHE.numOscs;
-
-		noscs.do({ arg i;
-			var k;
-
-			k = ("freq_"++(i+1)).asSymbol;
-			e.z[\osc][i].set(\hz, x[k]);
-			//gui.update_osc_freq(i, x[k]);
-
-			k = ("level_"++(i+1)).asSymbol;
-			e.z[\mix][i].set(\level, x[k]);
-			//gui.update_osc_level(i, x[k]);
-
-			k = ("pan_"++(i+1)).asSymbol;
-			e.z[\mix][i].set(\pos, x[k]);
-			//gui.update_osc_pan(i, x[k]);
-
-			4.do({ arg j;
-				k = ("mod_env_"++(j+1)++"_"++(i+1)).asSymbol;
-				e.z[\env_vca][j][i].set(\c, x[k]);
-				//gui.update_mod_env(i, j, x[k]);
-			});
-
-			EHE.numOscs.do({ arg j;
-				k = ("mod_vca_"++(j+1)++"_"++(i+1)).asSymbol;
-				e.z[\vca_vca][j][i].set(\c, x[k]);
-				// gui.update_mod_vca(i, j, x[k]);
-			});
-		});
-	}
-
-	*new_state_from_gui {
-		arg gui;
-		var state = Dictionary.new;
-		var noscs = EHE.numOscs;
-		noscs.do({ arg i;
-			var k;
-
-			k = ("freq_"++(i+1)).asSymbol;
-			state[k] = gui.tuning_nums[i].value;
-
-			k = ("level_"++(i+1)).asSymbol;
-			state[k] = gui.mix_channels[i].sl_level.value;
-			k = ("pan_"++(i+1)).asSymbol;
-			state[k] = gui.mix_channels[i].sl_pan.value.linlin(0, 1, -1, 1);
-
-			4.do({ arg j;
-				k = ("mod_env_"++(j+1)++"_"++(i+1)).asSymbol;
-				state[k] = gui.mod_channels[i].num_env[j].value;
-			});
-
-			EHE.numOscs.do({ arg j;
-				k = ("mod_vca_"++(j+1)++"_"++(i+1)).asSymbol;
-				state[k] = gui.mod_channels[i].num_vca[j].value;
-			});
-		});
-		^state
-	}
-
-	// asynchronously populate state structure from running synth params
-	*new_state_from_synth { arg e, callback;
-
-		var state = Dictionary.new;
-		var noscs = EHE.numOscs;
-		Routine {
-			noscs.do({ arg i;
-				var k;
-				var c = Condition.new;
-
-				k = ("freq_"++(i+1)).asSymbol;
-				e.z[\osc][i].get(\hz, { arg val;
-					state[k] = val;
-					c.unhang;
-					// postln("unhung freq " ++ i);
-				});
-				c.hang;
-
-				k = ("level_"++(i+1)).asSymbol;
-				e.z[\mix][i].get(\level, { arg val;
-					state[k] = val;
-					c.unhang;
-					// postln("unhung level " ++ i);
-				});
-				c.hang;
-
-				k = ("pan_"++(i+1)).asSymbol;
-				e.z[\mix][i].get(\pos, { arg val;
-					state[k] = val;
-					c.unhang;
-					// postln("unhung pan " ++ i);
-				});
-				c.hang;
-
-				4.do({ arg j;
-					k = ("mod_env_"++(j+1)++"_"++(i+1)).asSymbol;
-					e.z[\env_vca][j][i].get(\c, { arg val;
-						state[k] = val;
-						c.unhang;
-						// postln("unhung mod_env_vca " ++ j ++ " " ++ i);
-					});
-					c.hang;
-				});
-
-				EHE.numOscs.do({ arg j;
-					k = ("mod_vca_"++(j+1)++"_"++(i+1)).asSymbol;
-					e.z[\vca_vca][j][i].get(\c, { arg val;
-						state[k] = val;
-						c.unhang;
-						// postln("unhung mod_vca_vca " ++ j ++ " " ++ i);
-					});
-					c.hang;
-				});
-			});
-			postln("all synth params retrieved; running callback");
-			callback.value(state);
-		}.play;
-		//^state
-	}
-
-	*write_state_to_file { arg state, path;
-		var file = File.new(path, "w");
-		var ks = state.keys.asArray.sort;
-		ks.do({ arg k;
-			var str = "\\" ++ k.asString ++ ", " ++ state[k].asString ++ ", \n";
-			str.post;
-			file.write(str);
-		});
-		file.close;
-	}
-
-	*read_state_from_file { arg path;
-		var state = Dictionary.new;
-		var file = File.new(path, "r");
-		var str = "[ " ++ file.readAllString ++ " ]";
-		// var line = file.getLine;
-		// while ({ line.notNil }, {
-		// 	var parts = line.split(",");
-		// 	if (parts.size == 2, {
-		// 		var k = parts[0].trim.asSymbol;
-		// 		var v = parts[1].trim.dropRight(1).asFloat; // drop comma
-		// 		state[k] = v;
-		// 	});
-		// 	line = file.getLine;
-		// });
-		file.close;
-		state = Dictionary.newFrom(str.interpret);
-		^state
-	}
-
-	*refresh_gui_from_state { arg gui, state;
-		{
-		var noscs = EHE.numOscs;
-		noscs.do({ arg i;
-			var k;
-
-			k = ("freq_"++(i+1)).asSymbol;
-			gui.update_osc_freq(i, state[k]);
-
-			k = ("level_"++(i+1)).asSymbol;
-			gui.update_osc_level(i, state[k]);
-
-			k = ("pan_"++(i+1)).asSymbol;
-			gui.update_osc_pan(i, state[k]);
-
-			4.do({ arg j;
-				k = ("mod_env_"++(j+1)++"_"++(i+1)).asSymbol;
-				gui.update_mod_env(i, j, state[k]);
-			});
-
-			EHE.numOscs.do({ arg j;
-				k = ("mod_vca_"++(j+1)++"_"++(i+1)).asSymbol;
-				gui.update_mod_vca(i, j, state[k]);
-			});
-		});
-		}.defer;
-
-	}
-
-}
-
-
-/////////////////////////////////////////////////////////////////////////
-// morph between parameter states
-
-EHE_state_morph {
-	var <>target;
-	var <>previous;
-	var <>current;
-
-	var <>t = 0.0;
-	var <>dt = 0.2;
-	var <>r = 0.01;
-
-	var <>isMorphing = false;
-
-	var rout;
-
-	*new_morphed_state { arg state_a, state_b, t;
-		var state = Dictionary.new;
-		var ks = state_a.keys.asArray;
-		ks.postln;
-		ks.do({ arg k;
-			var va = state_a[k];
-			var vb = state_b[k];
-			state[k] = va + ((vb - va) * t);
-		});
-		^state
-	}
-
-	init {
-		EHE_state.new_state_from_synth(EHE.ehe, { arg s;
-			previous = s;
-			current = previous;
-			EHE_state.refresh_gui_from_state(EHE.gui, s);
-			rout = Routine {
-				loop {
-					if (isMorphing, {
-						post("morphing t: " ++ t);
-						t = (t + (r*dt)).min(1.0);
-						postln(" -> " ++ t);
-						current = EHE_state_morph.new_morphed_state(previous, target, t);
-						if (t >= 1.0, {
-							isMorphing = false;
-							previous = current;
-							t = 0.0;
-						});
-						EHE_state.apply_state(current, EHE.ehe);
-						EHE_state.refresh_gui_from_state(EHE.gui, current);
-					});
-					dt.wait;
-				}
-			}.play;
-		});
-	}
-
-	morph_to { arg aTarget, rate=0.01;
-		target = aTarget;
-		if (isMorphing, {
-			previous = current;
-			t = 0;
-		});
-		isMorphing = true;
-	}
-
-	morph_to_file { arg path, rate=0.01;
-		var state = EHE_state.read_state_from_file(path);
-		this.r = rate;
-		this.morph_to(state);
-	}
-}
-
-////////////////////////////////////////////////////////////////////////
 // ---- main synth class!
 
 EHE {
@@ -309,7 +11,10 @@ EHE {
 
 	classvar <playback_paths;
 
-	classvar <file_start = 360;
+	classvar <preset_dir = "~/Desktop/earth_horns/ehe-presets";
+
+	// classvar <file_start = 360;
+	classvar <file_start = 0;
 
 	classvar <hz_init_base = 48;
 	classvar <hz_init;
@@ -318,17 +23,14 @@ EHE {
 
 	classvar <ehe; // singleton instance
 	classvar <gui;
+	classvar <mph; // morph controller
+	classvar <mph_gui;
 
 	var <s; // server
-
 	var <b; // busses
-
 	var <g;  // groups
-
 	var <z; // synths
-
-	var <d; // data
-
+	//	var <d; // data
 	var <buf; // streaming buffer for disk input
 
 	//var <bscope; // wrapper busses for scoping
@@ -345,7 +47,7 @@ EHE {
 		hz_init = hz_init_base * Array.series(EHE.numOscs, 1, 1);
 
 		// randomize them a little :P
-		EHE.numOscs.do({ arg i; hz_init[i] = (hz_init[i].cpsmidi + 0.14.rand2).midicps });
+		//		EHE.numOscs.do({ arg i; hz_init[i] = (hz_init[i].cpsmidi + 0.14.rand2).midicps });
 
 		postln("EHE initClass");
 		postln("EHE shouldAddToStartup = " ++ shouldAddToStartup);
@@ -360,7 +62,13 @@ EHE {
 						ehe = EHE.new(s);
 						s.sync;
 						1.wait;
-						{ gui = EHE_gui.new; }.defer;
+						{
+							gui = EHE_gui.new;
+							mph = EHE_state_morph.new;
+							mph.init;
+							mph_gui = EHE_morph_gui.new;
+						}.defer;
+
 					}.play;
 				}
 			});
@@ -426,7 +134,6 @@ EHE {
 	add_busses {
 
 		b = Event.new;
-
 
 		// oscillators: Nx mono
 		b[\osc] = Array.fill(EHE.numOscs, { Bus.audio(s, 1) });
@@ -687,7 +394,7 @@ EHE_defs {
 
 			var drift = LFNoise2.kr(\drift_rate.kr(0.01), \drift_st.kr(0.07));
 			var fb_drift = LFNoise2.kr(\fb_drift_rate.kr(0.01));
-			var feedback = \feedback.kr(3/7) * fb_drift.max(\fb_floor.kr(0.07));
+			var feedback = \feedback.kr(1/7) * fb_drift.max(\fb_floor.kr(0.02));
 			var osc = SinOscFB.ar(\hz.kr(48) * K2A.ar(drift.midiratio), feedback);
 			Out.ar(\out.kr(0), osc * \amp.kr(0.1));
 		}).send(s);
@@ -709,7 +416,7 @@ EHE_defs {
 			var a = (c < 0) * (c * -1);
 			var lag = \lag.kr(0.1);
 			a = a.min(1).max(0);
-			c = c.min(1).max(-1);
+			c = c.min(4).max(-4);
 			a = Lag.kr(a, lag);
 			c = Lag.kr(c, lag);
 			x = (x * c) + a;
@@ -722,11 +429,11 @@ EHE_defs {
 			var x = InFeedback.ar(\in.kr);
 			// scaled offset when inverting
 			var a = (c < 0) * (c * -1);
-			var lag = \lag.kr(0.1);
+			var lag = \lag.kr(4.0);
 			a = a.min(1).max(0);
 			c = c.min(1).max(-1);
-			// a = Lag.ar(a, lag);
-			// c = Lag.ar(c, lag);
+			a = Lag.kr(a, lag);
+			c = Lag.kr(c, lag);
 			x = (x * c) + a;
 			x = BufDelayL.ar(LocalBuf(s.sampleRate * 0.1), x, \delay.kr(0.09).min(0.099));
 			Out.ar(\out.kr, x);
@@ -1031,4 +738,395 @@ EHE_gui {
 	}
 
 
+}
+
+////////////////////////////////////////////////////////////////////////
+// parameter state representation and I/O
+EHE_state {
+
+	// a state is a flat associative collection
+	*new_state {
+		var state = Dictionary.new;
+
+
+		var noscs = EHE.numOscs;
+		//postln("num oscs: "  ++ noscs);
+		noscs.do({ arg i;
+			var k;
+
+
+			i.postln;
+
+			k = ("freq_"++(i+1)).asSymbol;
+			state[k] = EHE.hz_init[i];
+			k = ("level_"++(i+1)).asSymbol;
+			state[k] = 0;
+			k = ("pan_"++(i+1)).asSymbol;
+			state[k] = 0;
+
+			4.do({ arg j;
+				k = ("mod_env_"++(j+1)++"_"++(i+1)).asSymbol;
+				state[k] = 0;
+			});
+
+			EHE.numOscs.do({ arg j;
+				k = ("mod_vca_"++(j+1)++"_"++(i+1)).asSymbol;
+				state[k] = 0;
+			});
+		});
+
+		^state
+	}
+
+	*print_state { arg state;
+		var ks = state.keys.asArray.sort;
+		ks.do({ arg k;
+			//[k, state[k]].postln;
+			postln("\\" ++ k.asString ++ ", " ++ state[k] ++ ", ");
+		});
+	}
+
+	*apply_state { arg x, e; //, gui;
+		var noscs = EHE.numOscs;
+
+		noscs.do({ arg i;
+			var k;
+
+			k = ("freq_"++(i+1)).asSymbol;
+			e.z[\osc][i].set(\hz, x[k]);
+			//gui.update_osc_freq(i, x[k]);
+
+			k = ("level_"++(i+1)).asSymbol;
+			e.z[\mix][i].set(\level, x[k]);
+			//gui.update_osc_level(i, x[k]);
+
+			k = ("pan_"++(i+1)).asSymbol;
+			e.z[\mix][i].set(\pos, x[k]);
+			//gui.update_osc_pan(i, x[k]);
+
+			4.do({ arg j;
+				k = ("mod_env_"++(j+1)++"_"++(i+1)).asSymbol;
+				e.z[\env_vca][j][i].set(\c, x[k]);
+				//gui.update_mod_env(i, j, x[k]);
+			});
+
+			EHE.numOscs.do({ arg j;
+				k = ("mod_vca_"++(j+1)++"_"++(i+1)).asSymbol;
+				e.z[\vca_vca][j][i].set(\c, x[k]);
+				// gui.update_mod_vca(i, j, x[k]);
+			});
+		});
+	}
+
+	*new_state_from_gui {
+		arg gui;
+		var state = Dictionary.new;
+		var noscs = EHE.numOscs;
+		noscs.do({ arg i;
+			var k;
+
+			k = ("freq_"++(i+1)).asSymbol;
+			state[k] = gui.tuning_nums[i].value;
+
+			k = ("level_"++(i+1)).asSymbol;
+			state[k] = gui.mix_channels[i].sl_level.value;
+			k = ("pan_"++(i+1)).asSymbol;
+			state[k] = gui.mix_channels[i].sl_pan.value.linlin(0, 1, -1, 1);
+
+			4.do({ arg j;
+				k = ("mod_env_"++(j+1)++"_"++(i+1)).asSymbol;
+				state[k] = gui.mod_channels[i].num_env[j].value;
+			});
+
+			EHE.numOscs.do({ arg j;
+				k = ("mod_vca_"++(j+1)++"_"++(i+1)).asSymbol;
+				state[k] = gui.mod_channels[i].num_vca[j].value;
+			});
+		});
+		^state
+	}
+
+	// asynchronously populate state structure from running synth params
+	*new_state_from_synth { arg e, callback;
+
+		var state = Dictionary.new;
+		var noscs = EHE.numOscs;
+		Routine {
+			noscs.do({ arg i;
+				var k;
+				var c = Condition.new;
+
+				k = ("freq_"++(i+1)).asSymbol;
+				e.z[\osc][i].get(\hz, { arg val;
+					state[k] = val;
+					c.unhang;
+					// postln("unhung freq " ++ i);
+				});
+				c.hang;
+
+				k = ("level_"++(i+1)).asSymbol;
+				e.z[\mix][i].get(\level, { arg val;
+					state[k] = val;
+					c.unhang;
+					// postln("unhung level " ++ i);
+				});
+				c.hang;
+
+				k = ("pan_"++(i+1)).asSymbol;
+				e.z[\mix][i].get(\pos, { arg val;
+					state[k] = val;
+					c.unhang;
+					// postln("unhung pan " ++ i);
+				});
+				c.hang;
+
+				4.do({ arg j;
+					k = ("mod_env_"++(j+1)++"_"++(i+1)).asSymbol;
+					e.z[\env_vca][j][i].get(\c, { arg val;
+						state[k] = val;
+						c.unhang;
+						// postln("unhung mod_env_vca " ++ j ++ " " ++ i);
+					});
+					c.hang;
+				});
+
+				EHE.numOscs.do({ arg j;
+					k = ("mod_vca_"++(j+1)++"_"++(i+1)).asSymbol;
+					e.z[\vca_vca][j][i].get(\c, { arg val;
+						state[k] = val;
+						c.unhang;
+						// postln("unhung mod_vca_vca " ++ j ++ " " ++ i);
+					});
+					c.hang;
+				});
+			});
+			postln("all synth params retrieved; running callback");
+			callback.value(state);
+		}.play;
+		//^state
+	}
+
+	*write_state_to_file { arg state, path;
+		var file = File.new(path, "w");
+		var ks = state.keys.asArray.sort;
+		ks.do({ arg k;
+			var str = "\\" ++ k.asString ++ ", " ++ state[k].asString ++ ", \n";
+			str.post;
+			file.write(str);
+		});
+		file.close;
+	}
+
+	*read_state_from_file { arg path;
+		var state = Dictionary.new;
+		var file = File.new(path, "r");
+		var str = "[ " ++ file.readAllString ++ " ]";
+		// var line = file.getLine;
+		// while ({ line.notNil }, {
+		// 	var parts = line.split(",");
+		// 	if (parts.size == 2, {
+		// 		var k = parts[0].trim.asSymbol;
+		// 		var v = parts[1].trim.dropRight(1).asFloat; // drop comma
+		// 		state[k] = v;
+		// 	});
+		// 	line = file.getLine;
+		// });
+		file.close;
+		state = Dictionary.newFrom(str.interpret);
+		^state
+	}
+
+	*refresh_gui_from_state { arg gui, state;
+		{
+			var noscs = EHE.numOscs;
+			noscs.do({ arg i;
+				var k;
+
+				k = ("freq_"++(i+1)).asSymbol;
+				gui.update_osc_freq(i, state[k]);
+
+				k = ("level_"++(i+1)).asSymbol;
+				gui.update_osc_level(i, state[k]);
+
+				k = ("pan_"++(i+1)).asSymbol;
+				gui.update_osc_pan(i, state[k]);
+
+				4.do({ arg j;
+					k = ("mod_env_"++(j+1)++"_"++(i+1)).asSymbol;
+					gui.update_mod_env(i, j, state[k]);
+				});
+
+				EHE.numOscs.do({ arg j;
+					k = ("mod_vca_"++(j+1)++"_"++(i+1)).asSymbol;
+					gui.update_mod_vca(i, j, state[k]);
+				});
+			});
+		}.defer;
+
+	}
+
+}
+
+
+/////////////////////////////////////////////////////////////////////////
+// morph between parameter states
+
+EHE_state_morph {
+	var <>target;
+	var <>previous;
+	var <>current;
+
+	var <>t = 0.0;
+	var <>dt = 0.1;
+	var <>r = 0.01;
+
+	var <>isMorphing = false;
+
+	var rout;
+
+	*new_morphed_state { arg state_a, state_b, t;
+		var state = Dictionary.new;
+		var ks = state_a.keys.asArray;
+		ks.do({ arg k;
+			var va = state_a[k];
+			var vb = state_b[k];
+			state[k] = va + ((vb - va) * t);
+		});
+		^state
+	}
+
+	init {
+		EHE_state.new_state_from_synth(EHE.ehe, { arg s;
+			previous = s;
+			current = previous;
+			EHE_state.refresh_gui_from_state(EHE.gui, s);
+			rout = Routine {
+				loop {
+					if (isMorphing, {
+						// post("morphing t: " ++ t);
+						t = (t + (r*dt)).min(1.0);
+						// postln(" -> " ++ t);
+						current = EHE_state_morph.new_morphed_state(previous, target, t);
+
+						// EHE_state.print_state(current);
+
+						if (t >= 1.0, {
+							isMorphing = false;
+							previous = current;
+							t = 0.0;
+						});
+						EHE_state.apply_state(current, EHE.ehe);
+						EHE_state.refresh_gui_from_state(EHE.gui, current);
+					});
+					dt.wait;
+				}
+			}.play;
+		});
+	}
+
+	morph_to { arg aTarget, rate=0.01;
+		if (isMorphing, {
+			previous = current;
+			target = aTarget;
+			t = 0;
+		}, {
+			// not morphing - get the current state from the synth
+			EHE_state.new_state_from_synth(EHE.ehe, { arg state;
+				//EHE_state.write_state_to_file(state, (psetdir ++ "/ehe_" ++ Date.new.stamp ++ ".scd").standardizePath);
+				previous = state;
+				current = state;
+				target = aTarget;
+				t = 0;
+				isMorphing = true;
+			});
+		});
+	}
+
+	morph_to_file { arg path;
+		var state = EHE_state.read_state_from_file(path);
+		//this.r = rate;
+		this.morph_to(state);
+	}
+}
+
+//////////////////////////
+/// morph controller ui
+
+EHE_morph_gui {
+	var <w;
+
+	var butSave;
+	var butScan;
+	var butCancel;
+
+	var <paths;
+
+	var <butsView;
+	var <buts;
+
+	*new { ^super.new.init }
+
+	init {
+		w = Window.new("morph");
+		w.front;
+//		w.view.decorator = FlowLayout.new(w.view.bounds, 0@0, 0@0);
+
+		butSave = Button.new(w, 60@60)
+		.states_([
+			["save", Color.black, Color.white]
+		])
+		.action_({ arg but;
+			EHE_morph_gui.quicksave;
+			this.scandir;
+		});
+
+		butScan = Button.new(w, Rect(100, 0, 60, 60))
+		.states_([
+			["scan", Color.black, Color.white]
+		])
+		.action_({ arg but;
+			this.scandir;
+		});
+
+
+		butCancel= Button.new(w, Rect(200, 0, 60, 60))
+		.states_([
+			["cancel", Color.black, Color.white]
+		])
+		.action_({ arg but;
+			EHE.mph.isMorphing = false;
+		});
+
+		this.scandir;
+	}
+
+	*quicksave {
+		var psetdir = EHE.preset_dir;
+		EHE_state.new_state_from_synth(EHE.ehe, { arg state;
+			EHE_state.write_state_to_file(state, (psetdir ++ "/ehe_" ++ Date.new.stamp ++ ".scd").standardizePath);
+		});
+
+	}
+
+	scandir {
+		buts.do({ arg but; but.remove; });
+		if (butsView.notNil, { butsView.remove; });
+
+		butsView = View(w, Rect(0, 100, 300, 400));
+		butsView.decorator = FlowLayout.new(butsView.bounds, 0@0, 0@0);
+
+		buts = List.new;
+		PathName(EHE.preset_dir.standardizePath).files.do({
+			arg pathname;
+			var path = pathname.fullPath;
+			var filename = pathname.fileNameWithoutExtension;
+			pathname.postln;
+			buts.add(Button.new(butsView, 300@40)
+				.states_([[filename, Color.black, Color.white]])
+				.action_({
+					EHE.mph.morph_to_file(path);
+				})
+			);
+		});
+	}
 }

@@ -1157,14 +1157,17 @@ EHE_morph_gui {
 
 	var <status; // status display string
 
+	var <numTime;
+
 	*new { ^super.new.init }
 
 	init {
-		w = Window.new("morph");
+		w = Window.new("morph", Rect(0, 0, 400, 600));
+		w.view.decorator = FlowLayout(w.bounds, 10@10, 10@10);
 		w.front;
 		//		w.view.decorator = FlowLayout.new(w.view.bounds, 0@0, 0@0);
 
-		butSave = Button.new(w, 60@60)
+		butSave = Button.new(w, 60@40)
 		.states_([
 			["save", Color.black, Color.white]
 		])
@@ -1173,7 +1176,7 @@ EHE_morph_gui {
 			this.scandir;
 		});
 
-		butScan = Button.new(w, Rect(100, 0, 60, 60))
+		butScan = Button.new(w, 60@40)
 		.states_([
 			["scan", Color.black, Color.white]
 		])
@@ -1182,7 +1185,7 @@ EHE_morph_gui {
 		});
 
 
-		butCancel= Button.new(w, Rect(200, 0, 60, 60))
+		butCancel= Button.new(w, 60@40)
 		.states_([
 			["cancel", Color.black, Color.white]
 		])
@@ -1191,7 +1194,19 @@ EHE_morph_gui {
 			{ EHE.mph_gui.status.string_("morph cancelled"); }.defer;
 		});
 
-		status = StaticText.new(w, Rect(0, 60, 200, 60));
+		w.view.decorator.nextLine;
+
+		status = StaticText.new(w, 200@40);
+		w.view.decorator.nextLine;
+
+		StaticText.new(w, 60@40).string_("time: ");
+		numTime = NumberBox(w, 60@40).action_({
+			arg num;
+			var time = 1 / num.value;
+			var str = "setting morph time: " ++ time ++ " s";
+			str.postln;
+			EHE.mph.r = time;
+		});
 
 		this.scandir;
 	}
@@ -1210,7 +1225,7 @@ EHE_morph_gui {
 		buts.do({ arg but; but.remove; });
 		if (butsView.notNil, { butsView.remove; });
 
-		butsView = View(w, Rect(0, 160, 300, 400));
+		butsView = View(w, 300@600);
 		butsView.decorator = FlowLayout.new(butsView.bounds, 0@0, 0@0);
 
 		buts = List.new;

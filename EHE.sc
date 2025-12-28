@@ -691,6 +691,20 @@ EHE_gui_main : View {
 		h = h - 40;
 
 
+		StaticText(this, 60@20).string_("attack:");
+		NumberBox(this, w-60@20).action_({ arg num;
+			var val = num.value;
+			EHE.ehe.g[\env].set(\a, val);
+		});
+		this.decorator.nextLine;
+
+		StaticText(this, 60@20).string_("release: ");
+		NumberBox(this, w-60@20).action_({ arg num;
+			var val = num.value;
+			EHE.ehe.g[\env].set(\r, val);
+		});
+		this.decorator.nextLine;
+		h = h - 40;
 
 		sl_level = Slider(this, w@(h-20));
 		this.decorator.nextLine;

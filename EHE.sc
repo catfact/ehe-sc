@@ -553,7 +553,7 @@ EHE_gui_mod_channel : View {
 	classvar <slSpec;
 
 	*initClass {
-		slSpec = ControlSpec.new(-2, 2);
+		slSpec = ControlSpec.new(-4, 4);
 	}
 
 	*new { arg parent, bounds, channel;
@@ -625,8 +625,8 @@ EHE_gui_main : View {
 
 		but_adc = Button(this, w@20);
 		but_adc.states_([
-			["ADC off", Color.white, Color.grey],
-			["ADC on", Color.black, Color.white]
+			["input off", Color.white, Color.grey],
+			["input on", Color.black, Color.white]
 		]);
 		but_adc.action_({ arg but;
 			var val = but.value;
@@ -1087,6 +1087,7 @@ EHE_state_morph {
 				loop {
 					if (isMorphing, {
 						// post("morphing t: " ++ t);
+						{ EHE.mph_gui.status.string_("morphing: " ++ (t*100).round ++ "%"); }.defer;
 						t = (t + (r*dt)).min(1.0);
 						// postln(" -> " ++ t);
 						current = EHE_state_morph.new_morphed_state(previous, target, t);
@@ -1097,6 +1098,7 @@ EHE_state_morph {
 							isMorphing = false;
 							previous = current;
 							t = 0.0;
+							{ EHE.mph_gui.status.string_("done morphing"); }.defer;
 						});
 						EHE_state.apply_state(current, EHE.ehe);
 						EHE_state.refresh_gui_from_state(EHE.gui, current);
@@ -1181,7 +1183,10 @@ EHE_morph_gui {
 		])
 		.action_({ arg but;
 			EHE.mph.isMorphing = false;
+			{ EHE.mph_gui.status.string_("morph cancelled"); }.defer;
 		});
+
+		status = StaticText.new(w, Rect(0, 60, 200, 60));
 
 		this.scandir;
 	}
@@ -1195,11 +1200,12 @@ EHE_morph_gui {
 
 	}
 
+	// scan the presets directory and update the list of load-preset buttons
 	scandir {
 		buts.do({ arg but; but.remove; });
 		if (butsView.notNil, { butsView.remove; });
 
-		butsView = View(w, Rect(0, 100, 300, 400));
+		butsView = View(w, Rect(0, 160, 300, 400));
 		butsView.decorator = FlowLayout.new(butsView.bounds, 0@0, 0@0);
 
 		buts = List.new;

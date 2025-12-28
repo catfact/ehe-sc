@@ -22,47 +22,23 @@ it will not work otherwise!
 
 after installation, the patch should run automatically the next time the `SuperCollider` application is run.
 
-## user interface
+## usage
 
-the interface is very janky and minimal right now! so:
-- there are no labels on UI elements!
-- initial state of UI elements does not represent the initial state of the patch
-- there is only minimal visual feedback (scope of envelope and oscillator busses)
-
-the UI is arranged in 7 columns, one for each oscillator. in each column starting from the top, controlling oscillator `OSC_N`, the UI elements are:
-
-- 1. number box to enter frequencies directly in Hz.
-- 2. pan slider: -1 to 1 for L <-> R.
-- 3. pan slider value display (non interactive!)
-- 4. volume slider
-- 5. volume slider value display (non interactive!)
-- 6. `ENV_1` -> `OSC_N` VCA modulation
-- 7. `ENV_2` -> `OSC_N` VCA modulation
-- 8. `ENV_3` -> `OSC_N` VCA modulation
-- 9. `ENV_4` -> `OSC_N` VCA modulation
-- 10. `OSC_1` -> `OSC_N` VCA modulation
-- 11. `OSC_2` -> `OSC_N` VCA modulation
-- 12. `OSC_3` -> `OSC_N` VCA modulation
-- 13. `OSC_4` -> `OSC_N` VCA modulation
-- 14. `OSC_5` -> `OSC_N` VCA modulation
-- 15. `OSC_6` -> `OSC_N` VCA modulation
-- 16. `OSC_7` -> `OSC_N` VCA modulation
-
-
-modulation sliders, like pan sliders, are bidirectional: 
-- at the center, the modulator does not contribute to the amplitude of the carrier
-- at 100% right, the full amount of the modulator signal is *added* to the amplitude of the carrier
-- at 100% left, the modulation is *inverted*: the modulator is subtracted from the carrier's level, and a proportional constant offset is added.
+see the **guide**: [link](guide/index.md)
 
 ## ROADMAP
 
 in rough priority order:
 
-- add controls to seek to different parts of the recorded input
-- add preset import / export
-- add controls to introduce live input
-- visualize / scope signals
-- morph presets
-- control morph from MIDI
+- [ ] configure server for multichannel input; device selection (config file?)
+- [ ] add controls for morph rate / duration
+- [ ] cross-fade frequency changes instead of glissando
+- [ ] "performance mode" UI: simplified controls, basic level / clip indicators, prettier
+- [x] add controls to seek to different parts of the recorded input
+- [x] add preset import / export
+- [x] add controls to introduce live input
+- [x] visualize / scope signals
+- [x] morph presets
+- [ ] control morph from MIDI
 
 and in parallel, of course, make any needed changes / refinements to the sound!

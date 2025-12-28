@@ -30,9 +30,11 @@ see the **guide**: [link](guide/index.md)
 
 in rough priority order:
 
-- [ ] configure server for multichannel input; device selection (config file?)
-- [ ] add controls for morph rate / duration
-- [ ] cross-fade frequency changes instead of glissando
+- [x] configure server for multichannel input; device selection (config file?)
+- [x] add controls for morph rate / duration
+- [x] cross-fade frequency changes instead of glissando
+- [x] add basic attack/release controls for envelope times
+- [ ] add other synthesis parameters to presets: drift amounts, mod delay times
 - [ ] "performance mode" UI: simplified controls, basic level / clip indicators, prettier
 - [x] add controls to seek to different parts of the recorded input
 - [x] add preset import / export

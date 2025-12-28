@@ -55,6 +55,8 @@ EHE {
 		if (shouldAddToStartup, {
 			StartUp.add({
 				var s = Server.default;
+				var opt = ServerOptions.defaultValues;
+
 
 				s.waitForBoot {
 					postln("EHE booted");
@@ -185,7 +187,9 @@ EHE {
 		// --- synths
 		z = Event.new;
 
-		// input
+		//-- input
+
+		// playback sources
 		z[\src] = Array.fill(4, { arg i;
 			buf[i].postln;
 			// { buf[i].inspect; }.defer;
@@ -195,6 +199,7 @@ EHE {
 			], target:g[\input])
 		});
 
+		// live input sources
 		z[\adc] = Array.fill(4, { arg i;
 			Synth.new(\ehe_adc, [
 				\out, b[\src][i].index,
@@ -258,7 +263,7 @@ EHE {
 		z[\out] = {
 			var snd = In.ar(b[\mix].index, 2);
 			snd = snd * Line.kr(dur:10);
-			snd = snd * \level.kr(1).lag(1);
+			snd = snd * \level.kr(0).lag(1);
 			snd = snd.softclip;
 			Out.ar(0, snd);
 		}.play(s, addAction:\addToTail);
@@ -598,6 +603,93 @@ EHE_gui_mod_channel : View {
 	}
 }
 
+
+// "main" / global section of the GUIß
+EHE_gui_main : View {
+	var <sl_level;
+	var <num_level;
+
+	var <but_adc;
+	var <but_src;
+	var <but_seek;
+	var <num_seek;
+
+	*new { arg parent, bounds;
+		^super.new(parent, bounds).init(parent, bounds);
+	}
+	init { arg parent, bounds;
+		var w = bounds.width;
+		var h = bounds.height;
+
+		this.decorator = FlowLayout(bounds, 0@0, 0@0);
+
+		but_adc = Button(this, w@20);
+		but_adc.states_([
+			["ADC off", Color.white, Color.grey],
+			["ADC on", Color.black, Color.white]
+		]);
+		but_adc.action_({ arg but;
+			var val = but.value;
+			var level = if(val == 1, { 1 }, { 0 });
+			EHE.ehe.z[\adc].do({ arg s;
+				s.set(\level, level);
+			});
+		});
+		this.decorator.nextLine;
+		but_src = Button(this, w@20);
+		but_src.states_([
+			["playback off", Color.white, Color.grey],
+			["playback on", Color.black, Color.white]
+		]);
+		but_src.action_({ arg but;
+			var val = but.value;
+			var level = if(val == 1, { 1 }, { 0 });
+			EHE.ehe.z[\src].do({ arg s;
+				s.set(\level, level);
+			});
+		});
+
+
+		but_adc.value = 1;
+		but_src.value = 1;
+
+		h = h - 40;
+		this.decorator.nextLine;
+
+		num_seek = NumberBox(this, w@20);
+		this.decorator.nextLine;
+		but_seek = Button(this, w@20);
+		but_seek.states_([
+			["seek", Color.black, Color.white]
+		]);
+		but_seek.action_({ arg but;
+			var sec = num_seek.value;
+			EHE.ehe.seek_playback(sec);
+		});
+		h = h - 40;
+
+
+
+		sl_level = Slider(this, w@(h-20));
+		this.decorator.nextLine;
+		num_level = NumberBox(this, w@20);
+
+		sl_level.action_({ arg sl;
+			var val = sl.value;
+			if (val > 0.25, {
+				val = val.linlin(0.25, 1.0, 0.25.ampdb, 12).dbamp;
+			});
+			num_level.valueAction_(val.ampdb);
+		});
+		num_level.action_({ arg num;
+			var val = num.value.dbamp;
+			EHE.ehe.z[\out].set(\level, val);
+		});
+	}
+}
+
+
+// top-level editor GUI
 EHE_gui {
 	var <e;
 	var <w;
@@ -605,11 +697,12 @@ EHE_gui {
 
 	var <labels; // labels container view
 	var <ui; // ui widgets container view
-	var <ui_main; // main / global controls container view
+	var <mainview; // main / global controls container view
 
 	var <mix_channels;
 	var <mod_channels;
 	var <tuning_nums;
+	var <main;
 
 	*new { ^super.new.init; }
 
@@ -627,8 +720,7 @@ EHE_gui {
 		ui = View.new(w, 700@800);
 		ui.decorator = FlowLayout(w.view.bounds, 0@0, 0@0);
 
-		ui_main = View.new(w, 200@800);
-		ui_main.decorator = FlowLayout(w.view.bounds, 0@0, 0@0);
+		mainview = View.new(w, 120@800);
 
 		tuning_nums = Array.fill(EHE.numOscs, { arg i;
 			NumberBox(ui, 80@20).action_({ arg numbox;
@@ -647,6 +739,9 @@ EHE_gui {
 			EHE_gui_mod_channel(ui, Rect(0, 0, 80, 500), i);
 		});
 
+		main = EHE_gui_main.new(mainview, Rect(0, 0, 120, 740));
+
+		//---  scope windows
 		wscope = Event.new;
 		[\src, \env, \vca_cv, \vca_out].do({ arg k, i;
 			var nchan = if((k == \src) || (k == \env), { 4 }, { EHE.numOscs });
@@ -753,8 +848,6 @@ EHE_state {
 		//postln("num oscs: "  ++ noscs);
 		noscs.do({ arg i;
 			var k;
-
-
 			i.postln;
 
 			k = ("freq_"++(i+1)).asSymbol;
@@ -903,7 +996,7 @@ EHE_state {
 			postln("all synth params retrieved; running callback");
 			callback.value(state);
 		}.play;
-		//^state
+		^nil
 	}
 
 	*write_state_to_file { arg state, path;
@@ -921,16 +1014,6 @@ EHE_state {
 		var state = Dictionary.new;
 		var file = File.new(path, "r");
 		var str = "[ " ++ file.readAllString ++ " ]";
-		// var line = file.getLine;
-		// while ({ line.notNil }, {
-		// 	var parts = line.split(",");
-		// 	if (parts.size == 2, {
-		// 		var k = parts[0].trim.asSymbol;
-		// 		var v = parts[1].trim.dropRight(1).asFloat; // drop comma
-		// 		state[k] = v;
-		// 	});
-		// 	line = file.getLine;
-		// });
 		file.close;
 		state = Dictionary.newFrom(str.interpret);
 		^state
@@ -1053,23 +1136,26 @@ EHE_state_morph {
 /// morph controller ui
 
 EHE_morph_gui {
-	var <w;
+	var <w; // window
 
+	// miscellaneous buttons
 	var butSave;
 	var butScan;
 	var butCancel;
 
-	var <paths;
+	var <paths; // known paths to preset files
 
-	var <butsView;
-	var <buts;
+	var <butsView;   // button container
+	var <buts;       // individual button widgets
+
+	var <status; // status display string
 
 	*new { ^super.new.init }
 
 	init {
 		w = Window.new("morph");
 		w.front;
-//		w.view.decorator = FlowLayout.new(w.view.bounds, 0@0, 0@0);
+		//		w.view.decorator = FlowLayout.new(w.view.bounds, 0@0, 0@0);
 
 		butSave = Button.new(w, 60@60)
 		.states_([
@@ -1100,6 +1186,7 @@ EHE_morph_gui {
 		this.scandir;
 	}
 
+	// create a new preset file in the preset directory
 	*quicksave {
 		var psetdir = EHE.preset_dir;
 		EHE_state.new_state_from_synth(EHE.ehe, { arg state;

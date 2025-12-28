@@ -29,3 +29,5 @@ m.morph_to(x);
 m.morph_to(y);
 m.morph_to(z);
 m.isMorphing = true;
+
+g[\monitor].

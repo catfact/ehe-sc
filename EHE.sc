@@ -349,6 +349,27 @@ EHE {
 		});
 	}
 
+	// change an oscillator frequency using a crossfade
+	crossfade_osc_freq { arg i, hz;
+		z[\osc][i].get(\hz, { arg old_hz;
+			if (hz != old_hz, {
+				postln(
+					"crossfading osc " ++ (i+1) ++
+					" from " ++ old_hz ++ " Hz to " ++ hz ++ " Hz"
+				);
+				z[\osc][i].set(\gate, 0);
+				z[\osc][i] = Synth.new(\ehe_osc, [
+					\out, b[\osc][i].index,
+					\hz, hz
+				], target:g[\osc]);
+				{ gui.update_osc_freq(i, hz); }.defer;
+			}, {
+				postln("skipping freq change for osc " ++ (i+1) ++ ", same value: " ++ hz);
+			});
+		});
+
+	}
+
 }
 
 
@@ -397,12 +418,12 @@ EHE_defs {
 
 		// oscillator node
 		SynthDef.new(\ehe_osc, {
-			// var aenv = EnvG
+			var aenv = EnvGen.kr(Env.asr(1, 1, 1), \gate.kr(1), timeScale: \fade_time.kr(21), doneAction:2);
 			var drift = LFNoise2.kr(\drift_rate.kr(0.01), \drift_st.kr(0.07));
 			var fb_drift = LFNoise2.kr(\fb_drift_rate.kr(0.01));
 			var feedback = \feedback.kr(1/7) * fb_drift.max(\fb_floor.kr(0.02));
 			var osc = SinOscFB.ar(\hz.kr(48) * K2A.ar(drift.midiratio), feedback);
-			Out.ar(\out.kr(0), osc * \amp.kr(0.1));
+			Out.ar(\out.kr(0), osc * \amp.kr(0.1) * aenv);
 		}).send(s);
 
 		// VCA node
@@ -886,27 +907,41 @@ EHE_state {
 		noscs.do({ arg i;
 			var k;
 
-			k = ("freq_"++(i+1)).asSymbol;
-			e.z[\osc][i].set(\hz, x[k]);
+			// done separately to allow crossfade
+			/// FIXME: logic / API needs cleanup since introducing the xfade mechanism
+
+			// k = ("freq_"++(i+1)).asSymbol;
+			// if (x.includesKey(k), {
+			// 	// e.z[\osc][i].set(\hz, x[k]);
+			// 	EHE.ehe.crossfade_osc_freq(i, x[k]);
+			// });
 			//gui.update_osc_freq(i, x[k]);
 
 			k = ("level_"++(i+1)).asSymbol;
-			e.z[\mix][i].set(\level, x[k]);
+			if (x.includesKey(k), {
+				e.z[\mix][i].set(\level, x[k]);
+			});
 			//gui.update_osc_level(i, x[k]);
 
 			k = ("pan_"++(i+1)).asSymbol;
-			e.z[\mix][i].set(\pos, x[k]);
+			if (x.includesKey(k), {
+				e.z[\mix][i].set(\pos, x[k]);
+			});
 			//gui.update_osc_pan(i, x[k]);
 
 			4.do({ arg j;
 				k = ("mod_env_"++(j+1)++"_"++(i+1)).asSymbol;
-				e.z[\env_vca][j][i].set(\c, x[k]);
+				if (x.includesKey(k), {
+					e.z[\env_vca][j][i].set(\c, x[k]);
+				});
 				//gui.update_mod_env(i, j, x[k]);
 			});
 
 			EHE.numOscs.do({ arg j;
 				k = ("mod_vca_"++(j+1)++"_"++(i+1)).asSymbol;
-				e.z[\vca_vca][j][i].set(\c, x[k]);
+				if (x.includesKey(k), {
+					e.z[\vca_vca][j][i].set(\c, x[k]);
+				});
 				// gui.update_mod_vca(i, j, x[k]);
 			});
 		});
@@ -1027,22 +1062,31 @@ EHE_state {
 				var k;
 
 				k = ("freq_"++(i+1)).asSymbol;
-				gui.update_osc_freq(i, state[k]);
+				if (state.includesKey(k), {
+					gui.update_osc_freq(i, state[k]);
+				});
 
 				k = ("level_"++(i+1)).asSymbol;
-				gui.update_osc_level(i, state[k]);
+				if (state.includesKey(k), {
+					gui.update_osc_level(i, state[k]);
+				});
 
 				k = ("pan_"++(i+1)).asSymbol;
-				gui.update_osc_pan(i, state[k]);
-
+				if (state.includesKey(k), {
+					gui.update_osc_pan(i, state[k]);
+				});
 				4.do({ arg j;
 					k = ("mod_env_"++(j+1)++"_"++(i+1)).asSymbol;
-					gui.update_mod_env(i, j, state[k]);
+					if (state.includesKey(k), {
+						gui.update_mod_env(i, j, state[k]);
+					});
 				});
 
 				EHE.numOscs.do({ arg j;
 					k = ("mod_vca_"++(j+1)++"_"++(i+1)).asSymbol;
-					gui.update_mod_vca(i, j, state[k]);
+					if (state.includesKey(k), {
+						gui.update_mod_vca(i, j, state[k]);
+					});
 				});
 			});
 		}.defer;
@@ -1072,9 +1116,14 @@ EHE_state_morph {
 		var state = Dictionary.new;
 		var ks = state_a.keys.asArray;
 		ks.do({ arg k;
-			var va = state_a[k];
-			var vb = state_b[k];
-			state[k] = va + ((vb - va) * t);
+			if (k.asString.contains("freq_"), {
+				// skip frequencies; they are handled separately via crossfading
+			}, {
+				// linear interpolation for everything else
+				var va = state_a[k];
+				var vb = state_b[k];
+				state[k] = va + ((vb - va) * t);
+			});
 		});
 		^state
 	}
@@ -1130,8 +1179,14 @@ EHE_state_morph {
 
 	morph_to_file { arg path;
 		var state = EHE_state.read_state_from_file(path);
-		//this.r = rate;
 		this.morph_to(state);
+		// apply frequencies immediately via crossfade
+		EHE.numOscs.do({ arg i;
+			var k = ("freq_"++(i+1)).asSymbol;
+			if (state.includesKey(k), {
+				EHE.ehe.crossfade_osc_freq(i, state[k]);
+			});
+		});
 	}
 }
 

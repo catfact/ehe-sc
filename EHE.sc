@@ -384,7 +384,7 @@ EHE_defs {
 			var gated = (ax * \gain.kr(1.0)).min(1.0) * (ax > \t.kr(0.001));
 
 			// simple exponential lag with separate rise/fall coefficients
-			var env = LagUD.ar(gated, \a.kr(7.0), \r.kr(7.0));
+			var env = LagUD.ar(gated, \a.kr(14.0), \r.kr(21.0));
 
 			// c = multiplier
 			// b = offset
@@ -397,11 +397,7 @@ EHE_defs {
 
 		// oscillator node
 		SynthDef.new(\ehe_osc, {
-			// TODO: we'll work on making this substantially more interesting:
-			// - harmonic content (waveshaping, etc) [added phase modulation feedback]
-			// - drift? [added, but maybe not right yet]
-			// - hiss/noise?
-
+			// var aenv = EnvG
 			var drift = LFNoise2.kr(\drift_rate.kr(0.01), \drift_st.kr(0.07));
 			var fb_drift = LFNoise2.kr(\fb_drift_rate.kr(0.01));
 			var feedback = \feedback.kr(1/7) * fb_drift.max(\fb_floor.kr(0.02));
@@ -1208,6 +1204,11 @@ EHE_morph_gui {
 			EHE.mph.r = time;
 		});
 
+
+		w.view.decorator.nextLine;
+		butsView = View(w, 300@600);
+		butsView.decorator = FlowLayout.new(butsView.bounds, 0@0, 0@0);
+
 		this.scandir;
 	}
 
@@ -1223,10 +1224,8 @@ EHE_morph_gui {
 	// scan the presets directory and update the list of load-preset buttons
 	scandir {
 		buts.do({ arg but; but.remove; });
-		if (butsView.notNil, { butsView.remove; });
-
-		butsView = View(w, 300@600);
-		butsView.decorator = FlowLayout.new(butsView.bounds, 0@0, 0@0);
+		//if (butsView.notNil, { butsView.remove; });
+		butsView.decorator.reset;
 
 		buts = List.new;
 		PathName(EHE.preset_dir.standardizePath).files.do({

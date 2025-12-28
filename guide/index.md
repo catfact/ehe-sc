@@ -53,7 +53,7 @@ The right side of the editor window contains global controls:
 
 ![image](img/scope.png)
 
-there are 4 "scope" windows showing multi-channel, oscilloscope-style displays of various signals in the system. they are:
+There are 4 "scope" windows showing multi-channel, oscilloscope-style displays of various signals in the system. These are:
 
 - **`src`** : source signals, live input and/or playback (one channel per input)
 - **`env`** : "control-voltage" envelopes derived from `src` amplitudes (one channel per input)
@@ -68,6 +68,22 @@ there are 4 "scope" windows showing multi-channel, oscilloscope-style displays o
 - `scan` : lists all files in the preset directory, and creates a button corresponding to each one
 - `cancel` : stop morphing
 
-at the bottom of this window are the morph buttons. each of these corresponds to a discovered preset file. pressing the button 
+At the bottom of this window are the morph buttons. each of these corresponds to a discovered preset file. Pressing the button initiates a _morph_ to the parameter state described by the file:
 
-note that **editor controls will not function properly during a morph**
+- synth parameters and UI state will be updated every _time step_ (currently **0.1s**),
+- performing a linear interpolation between the current,
+- completing the change over the _morph time_ duration (currently **100s**)
+
+Morphing affects: 
+- each oscillator pitch, output level, pan position
+- all modulation levels
+
+It does **not** affect the output level of the main mix.
+
+Other things to note:
+
+- At present, the time step and morph time are not adjustable! This will be addressed shortly.
+
+- Editor controls do not work properly during a morph, as morphing values overwrite control values. Use the `cancel` button if you want to edit the values before a morph is complete.
+
+- We plan on replacing the glissando behavior with a crossfade.

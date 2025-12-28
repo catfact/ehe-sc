@@ -54,25 +54,7 @@ EHE {
 
 		if (shouldAddToStartup, {
 			StartUp.add({
-				var s = Server.default;
-				var opt = ServerOptions.defaultValues;
-
-
-				s.waitForBoot {
-					postln("EHE booted");
-					Routine {
-						ehe = EHE.new(s);
-						s.sync;
-						1.wait;
-						{
-							gui = EHE_gui.new;
-							mph = EHE_state_morph.new;
-							mph.init;
-							mph_gui = EHE_morph_gui.new;
-						}.defer;
-
-					}.play;
-				}
+				EHE.startup;
 			});
 		});
 	}
@@ -81,6 +63,29 @@ EHE {
 		^super.new.init(aServer);
 	}
 
+
+	*startup {
+		var s = Server.default;
+		var opt = ServerOptions.new;
+		opt.numInputBusChannels_(4);
+		s.options_(opt);
+
+		s.waitForBoot {
+			postln("EHE booted");
+			Routine {
+				ehe = EHE.new(s);
+				s.sync;
+				1.wait;
+				{
+					gui = EHE_gui.new;
+					mph = EHE_state_morph.new;
+					mph.init;
+					mph_gui = EHE_morph_gui.new;
+				}.defer;
+
+			}.play;
+		}
+	}
 
 	//------------------------------------------------------
 	/// private

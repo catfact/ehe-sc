@@ -400,8 +400,8 @@ EHE_defs {
 			var modOutRise = \mod_out_rise.kr(0);
 			var modOutFall = \mod_out_fall.kr(0);
 
-			var riseTimeMod = (riseTime * (1 + (x*modInRise) + (y.abs*modOutRise))).max(0.001);
-			var fallTimeMod = (fallTime * (1 + (x*modInFall) + (y.abs*modOutFall))).max(0.001);
+			var riseTimeMod = (riseTime * (1 + (ax*modInRise) + (y.abs*modOutRise))).max(3);
+			var fallTimeMod = (fallTime * (1 + (ax*modInFall) + (y.abs*modOutFall))).max(3);
 
 			// fudge factor to make exp/lin times more perceptually similar
 			var lagTimeMult = 1.4;
@@ -760,8 +760,6 @@ EHE_gui_env_mod : View {
 		sl_mod_out_rise = Array.newClear(4);
 		num_mod_out_rise = Array.newClear(4);
 
-
-
 		4.do({ arg i;
 			StaticText(this, label_w@20).string_("env " ++ (i+1) ++ " shape:");
 			sl_shape[i] = Slider(this, w@20).thumbSize_(3);
@@ -781,13 +779,13 @@ EHE_gui_env_mod : View {
 			sl_mod_in_rise[i] = Slider(this, w@20).thumbSize_(3);
 			num_mod_in_rise[i] = NumberBox(this, num_w@20);
 			sl_mod_in_rise[i].action_({ arg sl;
-				var val = sl.value.linlin(0, 1, -4, 4);
+				var val = sl.value.linlin(0, 1, -1, 1);
 				num_mod_in_rise[i].valueAction_(val);
 			});
 			num_mod_in_rise[i].action_({ arg num;
 				var val = num.value;
 				EHE.ehe.z[\env][i].set(\mod_in_rise, val);
-				sl_mod_in_rise[i].value = val.linlin(-4, 4, 0, 1);
+				sl_mod_in_rise[i].value = val.linlin(-1, 1, 0, 1);
 			}).scroll_step_(0.1);
 			this.decorator.nextLine;
 
@@ -795,13 +793,13 @@ EHE_gui_env_mod : View {
 			sl_mod_in_fall[i] = Slider(this, w@20).thumbSize_(3);
 			num_mod_in_fall[i] = NumberBox(this, num_w@20);
 			sl_mod_in_fall[i].action_({ arg sl;
-				var val = sl.value.linlin(0, 1, -4, 4);
+				var val = sl.value.linlin(0, 1, -1, 1);
 				num_mod_in_fall[i].valueAction_(val);
 			});
 			num_mod_in_fall[i].action_({ arg num;
 				var val = num.value;
 				EHE.ehe.z[\env][i].set(\mod_in_fall, val);
-				sl_mod_in_fall[i].value = val.linlin(-4, 4, 0, 1);
+				sl_mod_in_fall[i].value = val.linlin(-1, 1, 0, 1);
 			}).scroll_step_(0.1);
 			this.decorator.nextLine;
 
@@ -809,13 +807,13 @@ EHE_gui_env_mod : View {
 			sl_mod_out_rise[i] = Slider(this, w@20).thumbSize_(3);
 			num_mod_out_rise[i] = NumberBox(this, num_w@20);
 			sl_mod_out_rise[i].action_({ arg sl;
-				var val = sl.value.linlin(0, 1, -4, 4);
+				var val = sl.value.linlin(0, 1, -1, 1);
 				num_mod_out_rise[i].valueAction_(val);
 			});
 			num_mod_out_rise[i].action_({ arg num;
 				var val = num.value;
 				EHE.ehe.z[\env][i].set(\mod_out_rise, val);
-				sl_mod_out_rise[i].value = val.linlin(-4, 4, 0, 1);
+				sl_mod_out_rise[i].value = val.linlin(-1, 1, 0, 1);
 			}).scroll_step_(0.1);
 			this.decorator.nextLine;
 
@@ -823,13 +821,13 @@ EHE_gui_env_mod : View {
 			sl_mod_out_fall[i] = Slider(this, w@20).thumbSize_(3);
 			num_mod_out_fall[i] = NumberBox(this, num_w@20);
 			sl_mod_out_fall[i].action_({ arg sl;
-				var val = sl.value.linlin(0, 1, -4, 4);
+				var val = sl.value.linlin(0, 1, -1, 1);
 				num_mod_out_fall[i].valueAction_(val);
 			});
 			num_mod_out_fall[i].action_({ arg num;
 				var val = num.value;
 				EHE.ehe.z[\env][i].set(\mod_out_fall, val);
-				sl_mod_out_fall[i].value = val.linlin(-4, 4, 0, 1);
+				sl_mod_out_fall[i].value = val.linlin(-1, 1, 0, 1);
 			}).scroll_step_(0.1);
 			this.decorator.nextLine;
 

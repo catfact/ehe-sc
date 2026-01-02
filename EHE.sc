@@ -382,37 +382,38 @@ EHE_defs {
 		// envelope follower node
 		SynthDef.new(\ehe_env, {
 
+			var y = LocalIn.ar(1);
+
 			// x = rectified input
 			var x = In.ar(\in.kr(0)); // * \g.kr(1);
-
-			/*
-			// alternative using envelopes and trigger
-			// (i think it looked like serge patch did it sort of like this?)
-		// has little varation if threshold isn't dialed exactly
-			// (b/c maximum value doesn't vary)
-
-		// t = threshold
-		// a = attack
-		// r = release
-		var trig = Amplitude.kr(x) > \t.kr(0.001);
-		var times = [\a.kr(1), \r.kr(6)];
-		var curves = [\sine, \sine];
-		var env_spec = Env.new([0, 1, 0], times, curves, releaseNode:1);
-		var env = EnvGen.ar(env_spec, trig);
-		*/
 
 			var ax = x.abs;
 			var gated = (ax * \gain.kr(1.0)).min(1.0) * (ax > \t.kr(0.001));
 
 			// simple exponential lag with separate rise/fall coefficients
-			var env = LagUD.ar(gated, \a.kr(14.0), \r.kr(21.0));
+			var riseTime = \rise.kr(12);
+			var fallTime = \fall.kr(24);
 
-			// c = multiplier
-			// b = offset
-			// y = output
-			var y = ((env * \c.kr(1.0)) + \b.kr(0.0)).min(1.0);
+			// modulation weights
+			var modInRise = \mod_in_rise.kr(0);
+			var modInFall = \mod_in_fall.kr(0);
+			var modOutRise = \mod_out_rise.kr(0);
+			var modOutFall = \mod_out_fall.kr(0);
 
-			Out.ar(\out.kr(0), y);
+			var riseTimeMod = (riseTime * (1 + (x*modInRise) + (y.abs*modOutRise))).max(0.001);
+			var fallTimeMod = (fallTime * (1 + (x*modInFall) + (y.abs*modOutFall))).max(0.001);
+
+			// fudge factor to make exp/lin times more perceptually similar
+			var lagTimeMult = 1.4;
+			var riseSlope = (riseTimeMod * lagTimeMult).reciprocal.min(999);
+			var fallSlope = (fallTimeMod * lagTimeMult).reciprocal.min(999);
+			var lag = LagUD.ar(gated, riseTimeMod, fallTimeMod);
+			var slew = Slew.ar(lag, riseSlope, fallSlope);
+			var env = SelectX.ar(\shape.kr(0), [slew, lag]);
+
+			LocalOut.ar(env);
+
+			Out.ar(\out.kr(0), env);
 			// env.poll;
 		}).send(s);
 
@@ -529,7 +530,7 @@ EHE_gui_mix_channel : View {
 
 		this.decorator = FlowLayout(bounds, 0@0, 0@0);
 
-		sl_pan = Slider(this, w@20);
+		sl_pan = Slider(this, w@20).thumbSize_(3);
 		h = h - 20;
 		num_pan = NumberBox(this, w@20);
 		h = h - 20;
@@ -544,7 +545,7 @@ EHE_gui_mix_channel : View {
 			sl_pan.value = val.linlin(-1, 1, 0, 1);
 		});
 
-		sl_level = Slider(this, w@(h-20));
+		sl_level = Slider(this, w@(h-20)).thumbSize_(3);
 		this.decorator.nextLine;
 		num_level = NumberBox(this, w@20);
 
@@ -593,7 +594,7 @@ EHE_gui_mod_channel : View {
 		num_vca = Array.newClear(EHE.numOscs);
 
 		4.do({ arg i;
-			sl_env[i] = Slider(this, w@20);
+			sl_env[i] = Slider(this, w@20).thumbSize_(3);
 			num_env[i] = NumberBox(this, w@20);
 			sl_env[i].action_({ arg sl;
 				//var val = sl.value.linlin(0, 1, -2, 2);
@@ -608,7 +609,7 @@ EHE_gui_mod_channel : View {
 		});
 
 		EHE.numOscs.do({ arg i;
-			sl_vca[i] = Slider(this, w@20);
+			sl_vca[i] = Slider(this, w@20).thumbSize_(3);
 			num_vca[i] = NumberBox(this, w@20);
 			sl_vca[i].action_({ arg sl;
 				//var val = sl.value.linlin(0, 1, -2, 2);
@@ -724,6 +725,120 @@ EHE_gui_main : View {
 	}
 }
 
+EHE_gui_env_mod : View {
+
+	var <sl_shape;
+	var <num_shape;
+	var <sl_mod_in_rise;
+	var <num_mod_in_rise;
+	var <sl_mod_in_fall;
+	var <num_mod_in_fall;
+	var <sl_mod_out_rise;
+	var <num_mod_out_rise;
+	var <sl_mod_out_fall;
+	var <num_mod_out_fall;
+
+	*new { arg parent, bounds;
+		^super.new(parent, bounds).init(parent, bounds);
+	}
+	init { arg parent, bounds;
+		var w = bounds.width / 3;
+		var h = bounds.height;
+		var num_w = w * 0.5;
+		var label_w = w * 1.5;
+
+		this.decorator = FlowLayout(bounds, 0@0, 0@0);
+
+		sl_shape = Array.newClear(4);
+		num_shape = Array.newClear(4);
+		sl_mod_in_fall = Array.newClear(4);
+		num_mod_in_fall = Array.newClear(4);
+		sl_mod_in_rise = Array.newClear(4);
+		num_mod_in_rise = Array.newClear(4);
+		sl_mod_out_fall = Array.newClear(4);
+		num_mod_out_fall = Array.newClear(4);
+		sl_mod_out_rise = Array.newClear(4);
+		num_mod_out_rise = Array.newClear(4);
+
+
+
+		4.do({ arg i;
+			StaticText(this, label_w@20).string_("env " ++ (i+1) ++ " shape:");
+			sl_shape[i] = Slider(this, w@20).thumbSize_(3);
+			num_shape[i] = NumberBox(this, num_w@20);
+			sl_shape[i].action_({ arg sl;
+				var val = sl.value.linlin(0, 1, 0, 1);
+				num_shape[i].valueAction_(val);
+			});
+			num_shape[i].action_({ arg num;
+				var val = num.value;
+				EHE.ehe.z[\env][i].set(\shape, val);
+				sl_shape[i].value = val.linlin(0, 1, 0, 1);
+			});
+			this.decorator.nextLine;
+
+			StaticText(this, label_w@20).string_("env " ++ (i+1) ++ " mod in rise:");
+			sl_mod_in_rise[i] = Slider(this, w@20).thumbSize_(3);
+			num_mod_in_rise[i] = NumberBox(this, num_w@20);
+			sl_mod_in_rise[i].action_({ arg sl;
+				var val = sl.value.linlin(0, 1, -4, 4);
+				num_mod_in_rise[i].valueAction_(val);
+			});
+			num_mod_in_rise[i].action_({ arg num;
+				var val = num.value;
+				EHE.ehe.z[\env][i].set(\mod_in_rise, val);
+				sl_mod_in_rise[i].value = val.linlin(-4, 4, 0, 1);
+			});
+			this.decorator.nextLine;
+
+			StaticText(this, label_w@20).string_("env " ++ (i+1) ++ " mod in fall:");
+			sl_mod_in_fall[i] = Slider(this, w@20).thumbSize_(3);
+			num_mod_in_fall[i] = NumberBox(this, num_w@20);
+			sl_mod_in_fall[i].action_({ arg sl;
+				var val = sl.value.linlin(0, 1, -4, 4);
+				num_mod_in_fall[i].valueAction_(val);
+			});
+			num_mod_in_fall[i].action_({ arg num;
+				var val = num.value;
+				EHE.ehe.z[\env][i].set(\mod_in_fall, val);
+				sl_mod_in_fall[i].value = val.linlin(-4, 4, 0, 1);
+			});
+			this.decorator.nextLine;
+
+			StaticText(this, label_w@20).string_("env " ++ (i+1) ++ " mod out rise:");
+			sl_mod_out_rise[i] = Slider(this, w@20).thumbSize_(3);
+			num_mod_out_rise[i] = NumberBox(this, num_w@20);
+			sl_mod_out_rise[i].action_({ arg sl;
+				var val = sl.value.linlin(0, 1, -4, 4);
+				num_mod_out_rise[i].valueAction_(val);
+			});
+			num_mod_out_rise[i].action_({ arg num;
+				var val = num.value;
+				EHE.ehe.z[\env][i].set(\mod_out_rise, val);
+				sl_mod_out_rise[i].value = val.linlin(-4, 4, 0, 1);
+			});
+			this.decorator.nextLine;
+
+			StaticText(this, label_w@20).string_("env " ++ (i+1) ++ " mod out fall:");
+			sl_mod_out_fall[i] = Slider(this, w@20).thumbSize_(3);
+			num_mod_out_fall[i] = NumberBox(this, num_w@20);
+			sl_mod_out_fall[i].action_({ arg sl;
+				var val = sl.value.linlin(0, 1, -4, 4);
+				num_mod_out_fall[i].valueAction_(val);
+			});
+			num_mod_out_fall[i].action_({ arg num;
+				var val = num.value;
+				EHE.ehe.z[\env][i].set(\mod_out_fall, val);
+				sl_mod_out_fall[i].value = val.linlin(-4, 4, 0, 1);
+			});
+			this.decorator.nextLine;
+
+
+		})
+
+
+	}
+}
 
 // top-level editor GUI
 EHE_gui {
@@ -731,9 +846,10 @@ EHE_gui {
 	var <w;
 	var <wscope;
 
-	var <labels; // labels container view
-	var <ui; // ui widgets container view
-	var <mainview; // main / global controls container view
+	var <labels; 		// labels container view
+	var <ui; 			// ui widgets container view
+	var <mainview; 		// main / global controls container view
+	var <env_mod_view;  // envelope modulation controls container view
 
 	var <mix_channels;
 	var <mod_channels;
@@ -745,9 +861,9 @@ EHE_gui {
 	init {
 		e = EHE.ehe;
 
-		w = Window.new("EHE", Rect(100, 100, 1000, 800));
+		w = Window.new("EHE", Rect(100, 100, 1300, 800));
 		w.front;
-		w.view.decorator = FlowLayout(w.view.bounds, 0@0, 0@0);
+		w.view.decorator = FlowLayout(w.view.bounds, 0@0, 20@0);
 
 		labels = View.new(w, 120@800);
 		labels.decorator = FlowLayout(w.view.bounds, 0@0, 0@0);
@@ -757,6 +873,8 @@ EHE_gui {
 		ui.decorator = FlowLayout(w.view.bounds, 0@0, 0@0);
 
 		mainview = View.new(w, 120@800);
+		//w.view.decorator
+		env_mod_view = EHE_gui_env_mod.new(w, Rect(0, 0, 300, 800));
 
 		tuning_nums = Array.fill(EHE.numOscs, { arg i;
 			NumberBox(ui, 80@20).action_({ arg numbox;

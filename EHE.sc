@@ -19,6 +19,11 @@ EHE {
 	classvar <hz_init_base = 48;
 	classvar <hz_init;
 
+	classvar <rise_default = 12;
+	classvar <fall_default = 12;
+	classvar <env_dur_min = 3;
+	classvar <env_dur_max = 24;
+
 	//--------------
 
 	classvar <ehe; // singleton instance
@@ -307,7 +312,6 @@ EHE {
 
 		1.wait;
 
-
 		//--- patch levels
 
 		// direct env to osc for the first 4 oscs
@@ -391,8 +395,8 @@ EHE_defs {
 			var gated = (ax * \gain.kr(1.0)).min(1.0) * (ax > \t.kr(0.001));
 
 			// simple exponential lag with separate rise/fall coefficients
-			var riseTime = \rise.kr(12);
-			var fallTime = \fall.kr(24);
+			var riseTime = \rise.kr(EHE.rise_default);
+			var fallTime = \fall.kr(EHE.fall_default);
 
 			// modulation weights
 			var modInRise = \mod_in_rise.kr(0);
@@ -400,13 +404,13 @@ EHE_defs {
 			var modOutRise = \mod_out_rise.kr(0);
 			var modOutFall = \mod_out_fall.kr(0);
 
-			var riseTimeMod = (riseTime * (1 + (ax*modInRise) + (y.abs*modOutRise))).max(3);
-			var fallTimeMod = (fallTime * (1 + (ax*modInFall) + (y.abs*modOutFall))).max(3);
+			var riseTimeMod = (riseTime * (1 + (ax*modInRise) + (y.abs*modOutRise))).max(EHE.env_dur_min);
+			var fallTimeMod = (fallTime * (1 + (ax*modInFall) + (y.abs*modOutFall))).max(EHE.env_dur_min);
 
 			// fudge factor to make exp/lin times more perceptually similar
 			var lagTimeMult = 1.4;
-			var riseSlope = (riseTimeMod * lagTimeMult).reciprocal.min(999);
-			var fallSlope = (fallTimeMod * lagTimeMult).reciprocal.min(999);
+			var riseSlope = (riseTimeMod * lagTimeMult).reciprocal.min(EHE.env_dur_max*2);
+			var fallSlope = (fallTimeMod * lagTimeMult).reciprocal.min(EHE.env_dur_max*2);
 			var lag = LagUD.ar(gated, riseTimeMod, fallTimeMod);
 			var slew = Slew.ar(lag, riseSlope, fallSlope);
 			var env = SelectX.ar(\shape.kr(0), [slew, lag]);
@@ -691,21 +695,20 @@ EHE_gui_main : View {
 		});
 		h = h - 40;
 
+		// StaticText(this, 60@20).string_("attack:");
+		// NumberBox(this, w-60@20).action_({ arg num;
+		// 	var val = num.value;
+		// 	EHE.ehe.g[\env].set(\a, val);
+		// });
+		// this.decorator.nextLine;
 
-		StaticText(this, 60@20).string_("attack:");
-		NumberBox(this, w-60@20).action_({ arg num;
-			var val = num.value;
-			EHE.ehe.g[\env].set(\a, val);
-		});
-		this.decorator.nextLine;
-
-		StaticText(this, 60@20).string_("release: ");
-		NumberBox(this, w-60@20).action_({ arg num;
-			var val = num.value;
-			EHE.ehe.g[\env].set(\r, val);
-		});
-		this.decorator.nextLine;
-		h = h - 40;
+		// StaticText(this, 60@20).string_("release: ");
+		// NumberBox(this, w-60@20).action_({ arg num;
+		// 	var val = num.value;
+		// 	EHE.ehe.g[\env].set(\r, val);
+		// });
+		// this.decorator.nextLine;
+		// h = h - 40;
 
 		sl_level = Slider(this, w@(h-20));
 		this.decorator.nextLine;
@@ -727,6 +730,10 @@ EHE_gui_main : View {
 
 EHE_gui_env_mod : View {
 
+	var <sl_rise;
+	var <num_rise;
+	var <sl_fall;
+	var <num_fall;
 	var <sl_shape;
 	var <num_shape;
 	var <sl_mod_in_rise;
@@ -749,6 +756,10 @@ EHE_gui_env_mod : View {
 
 		this.decorator = FlowLayout(bounds, 0@0, 0@0);
 
+		sl_rise = Array.newClear(4);
+		num_rise = Array.newClear(4);
+		sl_fall = Array.newClear(4);
+		num_fall = Array.newClear(4);
 		sl_shape = Array.newClear(4);
 		num_shape = Array.newClear(4);
 		sl_mod_in_fall = Array.newClear(4);
@@ -761,6 +772,35 @@ EHE_gui_env_mod : View {
 		num_mod_out_rise = Array.newClear(4);
 
 		4.do({ arg i;
+
+			StaticText(this, label_w@20).string_("env " ++ (i+1) ++ " rise:");
+			sl_rise[i] = Slider(this, w@20).thumbSize_(3);
+			num_rise[i] = NumberBox(this, num_w@20);
+			sl_rise[i].action_({ arg sl;
+				var val = sl.value.linlin(0, 1, EHE.env_dur_min, EHE.env_dur_max);
+				num_rise[i].valueAction_(val);
+			}).value_(EHE.rise_default.linlin(EHE.env_dur_min, EHE.env_dur_max, 0, 1));
+			num_rise[i].action_({ arg num;
+				var val = num.value;
+				EHE.ehe.z[\env][i].set(\rise, val);
+				sl_rise[i].value = val.linlin(EHE.env_dur_min, EHE.env_dur_max, 0, 1);
+			}).scroll_step_(0.1).value_(EHE.rise_default);
+			this.decorator.nextLine;
+
+			StaticText(this, label_w@20).string_("env " ++ (i+1) ++ " fall:");
+			sl_fall[i] = Slider(this, w@20).thumbSize_(3);
+			num_fall[i] = NumberBox(this, num_w@20);
+			sl_fall[i].action_({ arg sl;
+				var val = sl.value.linlin(0, 1, EHE.env_dur_min, EHE.env_dur_max);
+				num_fall[i].valueAction_(val);
+			}).value_(EHE.fall_default.linlin(EHE.env_dur_min, EHE.env_dur_max, 0, 1));
+			num_fall[i].action_({ arg num;
+				var val = num.value;
+				EHE.ehe.z[\env][i].set(\fall, val);
+				sl_fall[i].value = val.linlin(EHE.env_dur_min, EHE.env_dur_max, 0, 1);
+			}).scroll_step_(0.1).value_(EHE.fall_default);
+			this.decorator.nextLine;
+
 			StaticText(this, label_w@20).string_("env " ++ (i+1) ++ " shape:");
 			sl_shape[i] = Slider(this, w@20).thumbSize_(3);
 			num_shape[i] = NumberBox(this, num_w@20);
@@ -830,7 +870,6 @@ EHE_gui_env_mod : View {
 				sl_mod_out_fall[i].value = val.linlin(-1, 1, 0, 1);
 			}).scroll_step_(0.1);
 			this.decorator.nextLine;
-
 
 		})
 

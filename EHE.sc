@@ -605,7 +605,7 @@ EHE_gui_mod_channel : View {
 				var val = num.value;
 				EHE.ehe.z[\env_vca][i][channel].set(\c, val);
 				sl_env[i].value = slSpec.unmap(val);
-			})
+			}).scroll_step_(0.1);
 		});
 
 		EHE.numOscs.do({ arg i;
@@ -620,7 +620,7 @@ EHE_gui_mod_channel : View {
 				var val = num.value;
 				EHE.ehe.z[\vca_vca][i][channel].set(\c, val);
 				sl_vca[i].value = slSpec.unmap(val);
-			});
+			}).scroll_step_(0.1);
 		});
 
 	}
@@ -880,7 +880,7 @@ EHE_gui {
 			NumberBox(ui, 80@20).action_({ arg numbox;
 				[numbox, numbox.value].postln;
 				EHE.ehe.z[\osc][i].set(\hz, numbox.value);
-			});
+			}).scroll_step_(0.1);
 		});
 		ui.decorator.nextLine;
 

@@ -774,7 +774,7 @@ EHE_gui_env_mod : View {
 				var val = num.value;
 				EHE.ehe.z[\env][i].set(\shape, val);
 				sl_shape[i].value = val.linlin(0, 1, 0, 1);
-			});
+			}).scroll_step_(0.1);
 			this.decorator.nextLine;
 
 			StaticText(this, label_w@20).string_("env " ++ (i+1) ++ " mod in rise:");
@@ -788,7 +788,7 @@ EHE_gui_env_mod : View {
 				var val = num.value;
 				EHE.ehe.z[\env][i].set(\mod_in_rise, val);
 				sl_mod_in_rise[i].value = val.linlin(-4, 4, 0, 1);
-			});
+			}).scroll_step_(0.1);
 			this.decorator.nextLine;
 
 			StaticText(this, label_w@20).string_("env " ++ (i+1) ++ " mod in fall:");
@@ -802,7 +802,7 @@ EHE_gui_env_mod : View {
 				var val = num.value;
 				EHE.ehe.z[\env][i].set(\mod_in_fall, val);
 				sl_mod_in_fall[i].value = val.linlin(-4, 4, 0, 1);
-			});
+			}).scroll_step_(0.1);
 			this.decorator.nextLine;
 
 			StaticText(this, label_w@20).string_("env " ++ (i+1) ++ " mod out rise:");
@@ -816,7 +816,7 @@ EHE_gui_env_mod : View {
 				var val = num.value;
 				EHE.ehe.z[\env][i].set(\mod_out_rise, val);
 				sl_mod_out_rise[i].value = val.linlin(-4, 4, 0, 1);
-			});
+			}).scroll_step_(0.1);
 			this.decorator.nextLine;
 
 			StaticText(this, label_w@20).string_("env " ++ (i+1) ++ " mod out fall:");
@@ -830,7 +830,7 @@ EHE_gui_env_mod : View {
 				var val = num.value;
 				EHE.ehe.z[\env][i].set(\mod_out_fall, val);
 				sl_mod_out_fall[i].value = val.linlin(-4, 4, 0, 1);
-			});
+			}).scroll_step_(0.1);
 			this.decorator.nextLine;
 
 

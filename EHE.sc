@@ -1,21 +1,16 @@
+
 ////////////////////////////////////////////////////////////////////////
 // ---- main synth class!
 
 EHE {
-
 	classvar <numOscs = 8;
-
 	classvar <shouldAddToStartup = true;
-
 	classvar <playback_dir = "~/Desktop/earth_horns/2021 recordings/";
-
 	classvar <playback_paths;
-
 	classvar <preset_dir = "~/Desktop/earth_horns/ehe-presets";
 
 	// classvar <file_start = 360;
 	classvar <file_start = 0;
-
 	classvar <hz_init_base = 48;
 	classvar <hz_init;
 
@@ -38,8 +33,6 @@ EHE {
 	//	var <d; // data
 	var <buf; // streaming buffer for disk input
 
-	//var <bscope; // wrapper busses for scoping
-
 	*initClass {
 
 		playback_paths = [
@@ -50,9 +43,6 @@ EHE {
 		].collect({ arg filename; playback_dir.standardizePath ++ filename });
 
 		hz_init = hz_init_base * Array.series(EHE.numOscs, 1, 1);
-
-		// randomize them a little :P
-		//		EHE.numOscs.do({ arg i; hz_init[i] = (hz_init[i].cpsmidi + 0.14.rand2).midicps });
 
 		postln("EHE initClass");
 		postln("EHE shouldAddToStartup = " ++ shouldAddToStartup);
@@ -124,17 +114,11 @@ EHE {
 			});
 			s.sync;
 
-			// { buf.do({ arg bf; bf.plot }) }.defer;
-
-
 			this.add_busses;
 			this.add_nodes;
 			s.sync;
 
 			this.init_params;
-
-			// this.add_osc;
-			// this.add_gui;
 
 		}.play;
 	}
@@ -695,21 +679,6 @@ EHE_gui_main : View {
 		});
 		h = h - 40;
 
-		// StaticText(this, 60@20).string_("attack:");
-		// NumberBox(this, w-60@20).action_({ arg num;
-		// 	var val = num.value;
-		// 	EHE.ehe.g[\env].set(\a, val);
-		// });
-		// this.decorator.nextLine;
-
-		// StaticText(this, 60@20).string_("release: ");
-		// NumberBox(this, w-60@20).action_({ arg num;
-		// 	var val = num.value;
-		// 	EHE.ehe.g[\env].set(\r, val);
-		// });
-		// this.decorator.nextLine;
-		// h = h - 40;
-
 		sl_level = Slider(this, w@(h-20));
 		this.decorator.nextLine;
 		num_level = NumberBox(this, w@20);
@@ -850,6 +819,7 @@ EHE_gui_env_mod : View {
 				var val = sl.value.linlin(0, 1, -1, 1);
 				num_mod_out_rise[i].valueAction_(val);
 			});
+
 			num_mod_out_rise[i].action_({ arg num;
 				var val = num.value;
 				EHE.ehe.z[\env][i].set(\mod_out_rise, val);
@@ -1018,12 +988,34 @@ EHE_gui {
 		mod_channels[osc_idx].sl_env[env_idx].value = EHE_gui_mod_channel.slSpec.unmap(val);
 		mod_channels[osc_idx].num_env[env_idx].value = val;
 	}
+
 	update_mod_vca { arg osc_idx, vca_idx, val;
 		mod_channels[osc_idx].sl_vca[vca_idx].value = EHE_gui_mod_channel.slSpec.unmap(val);
 		mod_channels[osc_idx].num_vca[vca_idx].value = val;
 	}
 
+	update_env_timing { arg env_idx, rise, fall;
+		env_mod_view.sl_rise[env_idx].value = rise.linlin(EHE.env_dur_min, EHE.env_dur_max, 0, 1);
+		env_mod_view.num_rise[env_idx].value = rise;
+		env_mod_view.sl_fall[env_idx].value = fall.linlin(EHE.env_dur_min, EHE.env_dur_max, 0, 1);
+		env_mod_view.num_fall[env_idx].value = fall;
+	}
 
+	update_env_shape { arg env_idx, shape;
+		env_mod_view.sl_shape[env_idx].value = shape;
+		env_mod_view.num_shape[env_idx].value = shape;
+	}
+
+	update_env_timing_mod { arg env_idx, mod_in_rise, mod_in_fall, mod_out_rise, mod_out_fall;
+		env_mod_view.sl_mod_in_rise[env_idx].value = mod_in_rise.linlin(-1, 1, 0, 1);
+		env_mod_view.num_mod_in_rise[env_idx].value = mod_in_rise;
+		env_mod_view.sl_mod_in_fall[env_idx].value = mod_in_fall.linlin(-1, 1, 0, 1);
+		env_mod_view.num_mod_in_fall[env_idx].value = mod_in_fall;
+		env_mod_view.sl_mod_out_rise[env_idx].value = mod_out_rise.linlin(-1, 1, 0, 1);
+		env_mod_view.num_mod_out_rise[env_idx].value = mod_out_rise;
+		env_mod_view.sl_mod_out_fall[env_idx].value = mod_out_fall.linlin(-1, 1, 0, 1);
+		env_mod_view.num_mod_out_fall[env_idx].value = mod_out_fall;
+	}
 }
 
 ////////////////////////////////////////////////////////////////////////
@@ -1113,6 +1105,7 @@ EHE_state {
 				});
 				// gui.update_mod_vca(i, j, x[k]);
 			});
+
 		});
 	}
 
@@ -1145,8 +1138,9 @@ EHE_state {
 	}
 
 	// asynchronously populate state structure from running synth params
-	*new_state_from_synth { arg e, callback;
-
+	// calls callback with populated state
+	*new_state_from_synth {
+		arg e, callback;
 		var state = Dictionary.new;
 		var noscs = EHE.numOscs;
 		Routine {
@@ -1158,7 +1152,6 @@ EHE_state {
 				e.z[\osc][i].get(\hz, { arg val;
 					state[k] = val;
 					c.unhang;
-					// postln("unhung freq " ++ i);
 				});
 				c.hang;
 
@@ -1166,7 +1159,6 @@ EHE_state {
 				e.z[\mix][i].get(\level, { arg val;
 					state[k] = val;
 					c.unhang;
-					// postln("unhung level " ++ i);
 				});
 				c.hang;
 
@@ -1174,7 +1166,6 @@ EHE_state {
 				e.z[\mix][i].get(\pos, { arg val;
 					state[k] = val;
 					c.unhang;
-					// postln("unhung pan " ++ i);
 				});
 				c.hang;
 
@@ -1183,7 +1174,6 @@ EHE_state {
 					e.z[\env_vca][j][i].get(\c, { arg val;
 						state[k] = val;
 						c.unhang;
-						// postln("unhung mod_env_vca " ++ j ++ " " ++ i);
 					});
 					c.hang;
 				});
@@ -1193,7 +1183,6 @@ EHE_state {
 					e.z[\vca_vca][j][i].get(\c, { arg val;
 						state[k] = val;
 						c.unhang;
-						// postln("unhung mod_vca_vca " ++ j ++ " " ++ i);
 					});
 					c.hang;
 				});
@@ -1204,7 +1193,8 @@ EHE_state {
 		^nil
 	}
 
-	*write_state_to_file { arg state, path;
+	*write_state_to_file {
+		arg state, path;
 		var file = File.new(path, "w");
 		var ks = state.keys.asArray.sort;
 		ks.do({ arg k;
@@ -1215,7 +1205,8 @@ EHE_state {
 		file.close;
 	}
 
-	*read_state_from_file { arg path;
+	*read_state_from_file {
+		arg path;
 		var state = Dictionary.new;
 		var file = File.new(path, "r");
 		var str = "[ " ++ file.readAllString ++ " ]";
@@ -1224,7 +1215,8 @@ EHE_state {
 		^state
 	}
 
-	*refresh_gui_from_state { arg gui, state;
+	*refresh_gui_from_state {
+		arg gui, state;
 		{
 			var noscs = EHE.numOscs;
 			noscs.do({ arg i;
@@ -1259,7 +1251,6 @@ EHE_state {
 				});
 			});
 		}.defer;
-
 	}
 
 }
@@ -1305,13 +1296,9 @@ EHE_state_morph {
 			rout = Routine {
 				loop {
 					if (isMorphing, {
-						// post("morphing t: " ++ t);
 						{ EHE.mph_gui.status.string_("morphing: " ++ (t*100).round ++ "%"); }.defer;
 						t = (t + (r*dt)).min(1.0);
-						// postln(" -> " ++ t);
 						current = EHE_state_morph.new_morphed_state(previous, target, t);
-
-						// EHE_state.print_state(current);
 
 						if (t >= 1.0, {
 							isMorphing = false;
@@ -1336,7 +1323,6 @@ EHE_state_morph {
 		}, {
 			// not morphing - get the current state from the synth
 			EHE_state.new_state_from_synth(EHE.ehe, { arg state;
-				//EHE_state.write_state_to_file(state, (psetdir ++ "/ehe_" ++ Date.new.stamp ++ ".scd").standardizePath);
 				previous = state;
 				current = state;
 				target = aTarget;
@@ -1385,7 +1371,6 @@ EHE_morph_gui {
 		w = Window.new("morph", Rect(0, 0, 400, 600));
 		w.view.decorator = FlowLayout(w.bounds, 10@10, 10@10);
 		w.front;
-		//		w.view.decorator = FlowLayout.new(w.view.bounds, 0@0, 0@0);
 
 		butSave = Button.new(w, 60@40)
 		.states_([

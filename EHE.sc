@@ -667,9 +667,8 @@ EHE_gui_main : View {
 		h = h - 40;
 		this.decorator.nextLine;
 
-		num_seek = NumberBox(this, w@20);
-		this.decorator.nextLine;
-		but_seek = Button(this, w@20);
+		num_seek = NumberBox(this, (w-40)@20);
+		but_seek = Button(this, 40@20);
 		but_seek.states_([
 			["seek", Color.black, Color.white]
 		]);
@@ -994,28 +993,40 @@ EHE_gui {
 		mod_channels[osc_idx].num_vca[vca_idx].value = val;
 	}
 
-	update_env_timing { arg env_idx, rise, fall;
-		env_mod_view.sl_rise[env_idx].value = rise.linlin(EHE.env_dur_min, EHE.env_dur_max, 0, 1);
-		env_mod_view.num_rise[env_idx].value = rise;
-		env_mod_view.sl_fall[env_idx].value = fall.linlin(EHE.env_dur_min, EHE.env_dur_max, 0, 1);
-		env_mod_view.num_fall[env_idx].value = fall;
-	}
-
 	update_env_shape { arg env_idx, shape;
 		env_mod_view.sl_shape[env_idx].value = shape;
 		env_mod_view.num_shape[env_idx].value = shape;
 	}
 
-	update_env_timing_mod { arg env_idx, mod_in_rise, mod_in_fall, mod_out_rise, mod_out_fall;
-		env_mod_view.sl_mod_in_rise[env_idx].value = mod_in_rise.linlin(-1, 1, 0, 1);
-		env_mod_view.num_mod_in_rise[env_idx].value = mod_in_rise;
-		env_mod_view.sl_mod_in_fall[env_idx].value = mod_in_fall.linlin(-1, 1, 0, 1);
-		env_mod_view.num_mod_in_fall[env_idx].value = mod_in_fall;
-		env_mod_view.sl_mod_out_rise[env_idx].value = mod_out_rise.linlin(-1, 1, 0, 1);
-		env_mod_view.num_mod_out_rise[env_idx].value = mod_out_rise;
-		env_mod_view.sl_mod_out_fall[env_idx].value = mod_out_fall.linlin(-1, 1, 0, 1);
-		env_mod_view.num_mod_out_fall[env_idx].value = mod_out_fall;
+	update_env_rise { arg env_idx, rise;
+		env_mod_view.sl_rise[env_idx].value = rise.linlin(EHE.env_dur_min, EHE.env_dur_max, 0, 1);
+		env_mod_view.num_rise[env_idx].value = rise;
 	}
+
+	update_env_fall { arg env_idx, fall;
+		env_mod_view.sl_fall[env_idx].value = fall.linlin(EHE.env_dur_min, EHE.env_dur_max, 0, 1);
+		env_mod_view.num_fall[env_idx].value = fall;
+	}
+
+	update_env_mod_in_rise { arg env_idx, val;
+		env_mod_view.sl_mod_in_rise[env_idx].value = val.linlin(-1, 1, 0, 1);
+		env_mod_view.num_mod_in_rise[env_idx].value = val;
+	}
+
+	update_env_mod_in_fall { arg env_idx, val;
+		env_mod_view.sl_mod_in_fall[env_idx].value = val.linlin(-1, 1, 0, 1);
+		env_mod_view.num_mod_in_fall[env_idx].value = val;
+	}
+
+	update_env_mod_out_rise { arg env_idx, val;
+		env_mod_view.sl_mod_out_rise[env_idx].value = val.linlin(-1, 1, 0, 1);
+		env_mod_view.num_mod_out_rise[env_idx].value = val;
+	}
+
+	update_env_mod_out_fall { arg env_idx, val;
+		env_mod_view.sl_mod_out_fall[env_idx].value = val.linlin(-1, 1, 0, 1);
+		env_mod_view.num_mod_out_fall[env_idx].value = val;
+	}	
 }
 
 ////////////////////////////////////////////////////////////////////////
@@ -1105,6 +1116,38 @@ EHE_state {
 				});
 				// gui.update_mod_vca(i, j, x[k]);
 			});
+		
+			4.do ({ arg j;
+				var k;
+				k = ("rise_"++(j+1)).asSymbol;
+				if (x.includesKey(k), {
+					EHE.ehe.z[\env][j].set(\rise, x[k]);
+				});
+				k = ("fall_"++(j+1)).asSymbol;
+				if (x.includesKey(k), {
+					EHE.ehe.z[\env][j].set(\fall, x[k]);
+				});
+				k = ("shape_"++(j+1)).asSymbol;
+				if (x.includesKey(k), {
+					EHE.ehe.z[\env][j].set(\shape, x[k]);
+				});
+				k = ("mod_in_rise_"++(j+1)).asSymbol;
+				if (x.includesKey(k), {
+					EHE.ehe.z[\env][j].set(\mod_in_rise, x[k]);
+				});
+				k = ("mod_in_fall_"++(j+1)).asSymbol;
+				if (x.includesKey(k), {
+					EHE.ehe.z[\env][j].set(\mod_in_fall, x[k]);
+				});
+				k = ("mod_out_rise_"++(j+1)).asSymbol;
+				if (x.includesKey(k), {
+					EHE.ehe.z[\env][j].set(\mod_out_rise, x[k]);
+				});
+				k = ("mod_out_fall_"++(j+1)).asSymbol;
+				if (x.includesKey(k), {
+					EHE.ehe.z[\env][j].set(\mod_out_fall, x[k]);
+				});
+			});
 
 		});
 	}
@@ -1132,6 +1175,24 @@ EHE_state {
 			EHE.numOscs.do({ arg j;
 				k = ("mod_vca_"++(j+1)++"_"++(i+1)).asSymbol;
 				state[k] = gui.mod_channels[i].num_vca[j].value;
+			});
+
+			4.do({ arg j;
+				var k;
+				k = ("rise_"++(j+1)).asSymbol;
+				state[k] = gui.env_mod_view.num_rise[j].value;
+				k = ("fall_"++(j+1)).asSymbol;
+				state[k] = gui.env_mod_view.num_fall[j].value;
+				k = ("shape_"++(j+1)).asSymbol;
+				state[k] = gui.env_mod_view.num_shape[j].value;
+				k = ("mod_in_rise_"++(j+1)).asSymbol;
+				state[k] = gui.env_mod_view.num_mod_in_rise[j].value;
+				k = ("mod_in_fall_"++(j+1)).asSymbol;
+				state[k] = gui.env_mod_view.num_mod_in_fall[j].value;
+				k = ("mod_out_rise_"++(j+1)).asSymbol;
+				state[k] = gui.env_mod_view.num_mod_out_rise[j].value;
+				k = ("mod_out_fall_"++(j+1)).asSymbol;
+				state[k] = gui.env_mod_view.num_mod_out_fall[j].value;
 			});
 		});
 		^state
@@ -1186,6 +1247,53 @@ EHE_state {
 					});
 					c.hang;
 				});
+
+				4.do({ 
+					arg j;
+					var k;
+					k = ("rise_"++(j+1)).asSymbol;
+					e.z[\env][j].get(\rise, { arg val;
+						state[k] = val;
+						c.unhang;
+					});
+					c.hang;
+					k = ("fall_"++(j+1)).asSymbol;
+					e.z[\env][j].get(\fall, { arg val;
+						state[k] = val;
+						c.unhang;
+					});
+					c.hang;
+					k = ("shape_"++(j+1)).asSymbol;
+					e.z[\env][j].get(\shape, { arg val;
+						state[k] = val;
+						c.unhang;
+					});
+					c.hang;
+					k = ("mod_in_rise_"++(j+1)).asSymbol;
+					e.z[\env][j].get(\mod_in_rise, { arg val;
+						state[k] = val;
+						c.unhang;
+					});
+					c.hang;
+					k = ("mod_in_fall_"++(j+1)).asSymbol;
+					e.z[\env][j].get(\mod_in_fall, { arg val;
+						state[k] = val;
+						c.unhang;
+					});
+					c.hang;
+					k = ("mod_out_rise_"++(j+1)).asSymbol;
+					e.z[\env][j].get(\mod_out_rise, { arg val;
+						state[k] = val;
+						c.unhang;
+					});
+					c.hang;
+					k = ("mod_out_fall_"++(j+1)).asSymbol;
+					e.z[\env][j].get(\mod_out_fall, { arg val;
+						state[k] = val;
+						c.unhang;
+					});
+					c.hang;
+				})
 			});
 			postln("all synth params retrieved; running callback");
 			callback.value(state);
@@ -1249,6 +1357,48 @@ EHE_state {
 						gui.update_mod_vca(i, j, state[k]);
 					});
 				});
+
+				// update env mod params
+				4.do({ arg j;
+					var k;
+					k = ("rise_"++(j+1)).asSymbol;
+					if (state.includesKey(k), {
+						var val = state[k];
+						gui.update_env_rise(j, val);
+						
+					});
+					k = ("fall_"++(j+1)).asSymbol;
+					if (state.includesKey(k), {
+						var val = state[k];
+						gui.update_env_fall(j, val);
+					});
+					k = ("shape_"++(j+1)).asSymbol;
+					if (state.includesKey(k), {
+						var val = state[k];
+						gui.update_env_shape(j, val);
+					});
+					k = ("mod_in_rise_"++(j+1)).asSymbol;
+					if (state.includesKey(k), {
+						var val = state[k];
+						gui.update_env_mod_in_rise(j, val);	
+					});
+					k = ("mod_in_fall_"++(j+1)).asSymbol;
+					if (state.includesKey(k), {
+						var val = state[k];
+						gui.update_env_mod_in_fall(j, val);
+					});
+					k = ("mod_out_rise_"++(j+1)).asSymbol;
+					if (state.includesKey(k), {		
+						var val = state[k];
+						gui.update_env_mod_out_rise(j, val);
+					});
+					k = ("mod_out_fall_"++(j+1)).asSymbol;
+					if (state.includesKey(k), {
+						var val = state[k];
+						gui.update_env_mod_out_fall(j, val);	
+					});
+				});
+
 			});
 		}.defer;
 	}
@@ -1315,7 +1465,7 @@ EHE_state_morph {
 		});
 	}
 
-	morph_to { arg aTarget, rate=0.01;
+	morph_to { arg aTarget;
 		if (isMorphing, {
 			previous = current;
 			target = aTarget;
@@ -1407,12 +1557,12 @@ EHE_morph_gui {
 		StaticText.new(w, 60@40).string_("time: ");
 		numTime = NumberBox(w, 60@40).action_({
 			arg num;
-			var time = 1 / num.value;
-			var str = "setting morph time: " ++ time ++ " s";
+			var rate = 1 / num.value;
+			var str = "setting morph time = " ++ num.value ++ " (rate = " ++ rate ++ ")";
 			str.postln;
-			EHE.mph.r = time;
+			EHE.mph.r = rate;
 		});
-
+		numTime.value_(100.0);
 
 		w.view.decorator.nextLine;
 		butsView = View(w, 300@600);

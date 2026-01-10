@@ -227,7 +227,6 @@ EHE {
 			], target:g[\vca]);
 		});
 
-
 		// patch cables from envelopes to VCA CV inputs
 		z[\env_vca] = Array.fill(4, { arg i;
 			Array.fill(EHE.numOscs, { arg j;
@@ -423,8 +422,10 @@ EHE_defs {
 		SynthDef.new(\ehe_vca, {
 			var level = K2A.ar(\level.kr(1).lag(1));
 			var mod = In.ar(\mod.kr(1));
+			var offset = K2A.ar(\offset.kr(0).lag(1));
 			//var gain = level * mod.softclip;
-			var gain = level * mod;
+			var gain = (level * mod) + offset;
+			var gain = (gain * 0.25).softclip * 4;
 			Out.ar(\out.kr(0), In.ar(\in.kr(0)) * gain);
 		}).send(s);
 
@@ -448,13 +449,14 @@ EHE_defs {
 			var c = \c.kr;
 			var x = InFeedback.ar(\in.kr);
 			// scaled offset when inverting
-			var a = (c < 0) * (c * -1);
+			// var a = (c < 0) * (c * -1);
 			var lag = \lag.kr(4.0);
 			a = a.min(1).max(0);
 			c = c.min(1).max(-1);
-			a = Lag.kr(a, lag);
+			// a = Lag.kr(a, lag);
 			c = Lag.kr(c, lag);
-			x = (x * c) + a;
+			// x = (x * c) + a;
+			x = (x * c);
 			x = BufDelayL.ar(LocalBuf(s.sampleRate * 0.1), x, \delay.kr(0.09).min(0.099));
 			Out.ar(\out.kr, x);
 		}).send(s);
@@ -489,7 +491,6 @@ EHE_defs {
 			var snd = SoundIn.ar(\in.kr(0));
 			Out.ar(\out.kr(0), snd * \level.kr(1));
 		}).send(s);
-
 	}
 
 }

@@ -549,8 +549,10 @@ EHE_gui_mix_channel : View {
 			num_level.valueAction_(val.ampdb);
 		});
 		num_level.action_({ arg num;
-			var val = num.value.dbamp;
-			synth.set(\level, val);
+			var val = num.value;
+			var amp = val.dbamp;
+			synth.set(\level, amp);
+			sl_level.value = if (amp < 0.25, { amp}, { val.linlin(0.25.ampdb, 12, 0.25, 1.0) });
 		});
 
 	}

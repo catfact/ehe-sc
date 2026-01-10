@@ -216,6 +216,7 @@ EHE {
 		], target:g[\env]);
 		});
 
+		// 'VCAs' for each oscillator
 		z[\vca] = Array.fill(EHE.numOscs, { arg i;
 			Synth.new(\ehe_vca, [
 				\out, b[\vca_out][i],
@@ -272,9 +273,6 @@ EHE {
 				\pos, i.linlin(0, 3, -0.6, 0.6),
 			], g[\monitor])
 		});
-
-
-		// { b[\src][0].scope }.defer;
 	}
 
 	//-----------------------------------------------------------------
@@ -554,7 +552,6 @@ EHE_gui_mix_channel : View {
 			synth.set(\level, amp);
 			sl_level.value = if (amp < 0.25, { amp}, { val.linlin(0.25.ampdb, 12, 0.25, 1.0) });
 		});
-
 	}
 
 }
@@ -1032,7 +1029,7 @@ EHE_gui {
 	update_env_mod_out_fall { arg env_idx, val;
 		env_mod_view.sl_mod_out_fall[env_idx].value = val.linlin(-1, 1, 0, 1);
 		env_mod_view.num_mod_out_fall[env_idx].value = val;
-	}	
+	}
 }
 
 ////////////////////////////////////////////////////////////////////////
@@ -1141,7 +1138,7 @@ EHE_state {
 				});
 				// gui.update_mod_vca(i, j, x[k]);
 			});
-		
+
 			4.do ({ arg j;
 				var k;
 				k = ("rise_"++(j+1)).asSymbol;
@@ -1273,7 +1270,7 @@ EHE_state {
 					c.hang;
 				});
 
-				4.do({ 
+				4.do({
 					arg j;
 					var k;
 					k = ("rise_"++(j+1)).asSymbol;
@@ -1390,7 +1387,7 @@ EHE_state {
 					if (state.includesKey(k), {
 						var val = state[k];
 						gui.update_env_rise(j, val);
-						
+
 					});
 					k = ("fall_"++(j+1)).asSymbol;
 					if (state.includesKey(k), {
@@ -1405,7 +1402,7 @@ EHE_state {
 					k = ("mod_in_rise_"++(j+1)).asSymbol;
 					if (state.includesKey(k), {
 						var val = state[k];
-						gui.update_env_mod_in_rise(j, val);	
+						gui.update_env_mod_in_rise(j, val);
 					});
 					k = ("mod_in_fall_"++(j+1)).asSymbol;
 					if (state.includesKey(k), {
@@ -1413,14 +1410,14 @@ EHE_state {
 						gui.update_env_mod_in_fall(j, val);
 					});
 					k = ("mod_out_rise_"++(j+1)).asSymbol;
-					if (state.includesKey(k), {		
+					if (state.includesKey(k), {
 						var val = state[k];
 						gui.update_env_mod_out_rise(j, val);
 					});
 					k = ("mod_out_fall_"++(j+1)).asSymbol;
 					if (state.includesKey(k), {
 						var val = state[k];
-						gui.update_env_mod_out_fall(j, val);	
+						gui.update_env_mod_out_fall(j, val);
 					});
 				});
 
@@ -1616,13 +1613,20 @@ EHE_morph_gui {
 			arg pathname;
 			var path = pathname.fullPath;
 			var filename = pathname.fileNameWithoutExtension;
-			pathname.postln;
-			buts.add(Button.new(butsView, 300@40)
-				.states_([[filename, Color.black, Color.white]])
-				.action_({
-					EHE.mph.morph_to_file(path);
-				})
-			);
+			var but = Button.new(butsView, 300@40)
+			.states_([
+				[filename, Color.black, Color.white]
+			])
+			.action_({
+				EHE.mph.morph_to_file(path);
+				buts.do({ arg b;
+					b.font_(Font.default.pointSize_(16));
+				});
+				but.font_(Font.default.boldVariant.pointSize_(20));
+			});
+
+			buts.add(but);
+
 		});
 	}
 }

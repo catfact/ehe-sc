@@ -26,6 +26,10 @@ after installation, the patch should run automatically the next time the `SuperC
 
 see the **guide**: [link](guide/index.md)
 
+### morph time and crossfade
+
+oscillator frequency changes now crossfade over the same duration as the preset morph time. set the morph time in the morph window (the "time" number box); the crossfade will match this value. by default this is 100 seconds.
+
 ## ROADMAP
 
 in rough priority order:

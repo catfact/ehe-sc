@@ -70,9 +70,9 @@ There are 4 "scope" windows showing multi-channel, oscilloscope-style displays o
 
 At the bottom of this window are the morph buttons. each of these corresponds to a discovered preset file. Pressing the button initiates a _morph_ to the parameter state described by the file:
 
-- synth parameters and UI state will be updated every _time step_ (currently **0.1s**),
-- performing a linear interpolation between the current,
-- completing the change over the _morph time_ duration (currently **100s**)
+- synth parameters and UI state update every _time step_ (**0.1s**, fixed),
+- performing a linear interpolation from the current state,
+- completing the change over the _morph time_ duration (set by the "time" number box; default **100s**)
 
 Morphing affects: 
 - each oscillator pitch, output level, pan position
@@ -82,8 +82,8 @@ It does **not** affect the output level of the main mix.
 
 Other things to note:
 
-- At present, the time step and morph time are not adjustable! This will be addressed shortly.
+- Morph time is adjustable in the morph window via the "time" number box; the update time step remains fixed at 0.1s.
 
 - Editor controls do not work properly during a morph, as morphing values overwrite control values. Use the `cancel` button if you want to edit the values before a morph is complete.
 
-- We plan on replacing the glissando behavior with a crossfade.
+- Oscillator frequency changes now crossfade rather than glissando, and the crossfade duration is coupled to the current morph time.

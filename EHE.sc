@@ -341,14 +341,18 @@ EHE {
 	crossfade_osc_freq { arg i, hz;
 		z[\osc][i].get(\hz, { arg old_hz;
 			if (hz != old_hz, {
+				// couple fade time to preset morph duration
+				var fade_sec = if(EHE.mph.notNil && (EHE.mph.r > 0), { EHE.mph.r.reciprocal }, { 21 });
 				postln(
 					"crossfading osc " ++ (i+1) ++
 					" from " ++ old_hz ++ " Hz to " ++ hz ++ " Hz"
 				);
-				z[\osc][i].set(\gate, 0);
+				// apply fade time to the old osc, then gate it
+				z[\osc][i].set(\fade_time, fade_sec, \gate, 0);
 				z[\osc][i] = Synth.new(\ehe_osc, [
 					\out, b[\osc][i].index,
-					\hz, hz
+					\hz, hz,
+					\fade_time, fade_sec
 				], target:g[\osc]);
 				{ gui.update_osc_freq(i, hz); }.defer;
 			}, {
@@ -1060,6 +1064,25 @@ EHE_state {
 				k = ("mod_vca_"++(j+1)++"_"++(i+1)).asSymbol;
 				state[k] = 0;
 			});
+		});
+
+		// envelope timing and modulation params
+		4.do({ arg j;
+			var k;
+			k = ("rise_"++(j+1)).asSymbol;
+			state[k] = EHE.rise_default;
+			k = ("fall_"++(j+1)).asSymbol;
+			state[k] = EHE.fall_default;
+			k = ("shape_"++(j+1)).asSymbol;
+			state[k] = 0;
+			k = ("mod_in_rise_"++(j+1)).asSymbol;
+			state[k] = 0;
+			k = ("mod_in_fall_"++(j+1)).asSymbol;
+			state[k] = 0;
+			k = ("mod_out_rise_"++(j+1)).asSymbol;
+			state[k] = 0;
+			k = ("mod_out_fall_"++(j+1)).asSymbol;
+			state[k] = 0;
 		});
 
 		^state

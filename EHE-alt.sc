@@ -492,25 +492,16 @@ EHE_defs {
 // ---- GUI
 
 EHE_gui_color {
-	// TODO
-	*dc { 
-		^Color.new(0.2, 0.8, 0.2).blend(Color.grey, 0.7).lighten(0.49);
+	*dc { arg i;
+		^Color.new(0.2, 0.8, 0.2).blend(Color.grey, 0.7).lighten(if(i.even, {0.5}, {0.3}));
 	}
 
-	*env { arg idx;
-		^if (idx.even, {
-			Color.new(0.2, 0.2, 0.8).blend(Color.grey, 0.7).lighten(0.49);
-		}, {
-			Color.new(0.6, 0.6, 0.6).blend(Color.grey, 0.7).lighten(0.49);
-		});
+	*env { arg i, j;
+		^Color.new(0.6, 0.6, 0.8).blend(Color.grey, if(i.even, {0.8}, {0.6})).lighten(if(j.even, {0.5}, {0.3}));
 	}
 
-	*vca { arg idx;
-		^if (idx.even, {
-			Color.new(0.6, 0.2, 0.8).blend(Color.grey, 0.7).lighten(0.49);
-		}, {
-			Color.new(0.6, 0.6, 0.6).blend(Color.grey, 0.7).lighten(0.49);
-		});
+	*vca { arg i, j;
+		^Color.new(0.4, 0.8, 0.8).blend(Color.grey, if(i.even, {0.8}, {0.6})).lighten(if(j.even, {0.5}, {0.3}));
 	}
 }
 
@@ -595,11 +586,11 @@ EHE_gui_mod_channel : View {
 		num_vca = Array.newClear(EHE.numOscs);
 
 		sl_offset = Slider(this, w@20).thumbSize_(3);
-		sl_offset.background_(EHE_gui_color.dc);
+		sl_offset.background_(EHE_gui_color.dc(channel));
 		h = h - 20;
 
 		num_offset = NumberBox(this, w@20);
-		num_offset.background_(EHE_gui_color.dc);
+		num_offset.background_(EHE_gui_color.dc(channel));
 		h = h - 20;
 
 		sl_offset.action_({ arg sl;
@@ -617,9 +608,9 @@ EHE_gui_mod_channel : View {
 		
 		4.do({ arg i;
 			sl_env[i] = Slider(this, w@20).thumbSize_(3);
-			sl_env[i].background_(EHE_gui_color.env(i));
+			sl_env[i].background_(EHE_gui_color.env(i, channel));
 			num_env[i] = NumberBox(this, w@20);
-			num_env[i].background_(EHE_gui_color.env(i));
+			num_env[i].background_(EHE_gui_color.env(i, channel));
 			sl_env[i].action_({ arg sl;
 				//var val = sl.value.linlin(0, 1, -2, 2);
 				var val = slSpec.map(sl.value);
@@ -634,9 +625,9 @@ EHE_gui_mod_channel : View {
 
 		EHE.numOscs.do({ arg i;
 			sl_vca[i] = Slider(this, w@20).thumbSize_(3);
-			sl_vca[i].background_(EHE_gui_color.vca(i));
+			sl_vca[i].background_(EHE_gui_color.vca(i, channel));
 			num_vca[i] = NumberBox(this, w@20);
-			num_vca[i].background_(EHE_gui_color.vca(i));
+			num_vca[i].background_(EHE_gui_color.vca(i, channel));
 			sl_vca[i].action_({ arg sl;
 				//var val = sl.value.linlin(0, 1, -2, 2);
 				var val = slSpec.map(sl.value);
@@ -956,7 +947,7 @@ EHE_gui {
 	add_labels { arg v;
 		var h = 20;
 		var w = v.bounds.width;
-		var h2 = h * 2 - 2;
+		var h2 = h * 2 + 1;
 		StaticText(v, w@h).string_("frequency Hz");
 		v.decorator.nextLine;
 		StaticText(v, w@h).string_("pan position");
@@ -972,31 +963,36 @@ EHE_gui {
 		v.decorator.nextLine;
 		v.decorator.nextLine;
 		v.decorator.nextLine;
-		StaticText(v, w@h2).string_("DC -> osc N").background_(EHE_gui_color.dc);
 		v.decorator.nextLine;
-		StaticText(v, w@h2).string_("env 1 -> osc N").background_(EHE_gui_color.env(0));
 		v.decorator.nextLine;
-		StaticText(v, w@h2).string_("env 2 -> osc N").background_(EHE_gui_color.env(1));
 		v.decorator.nextLine;
-		StaticText(v, w@h2).string_("env 3 -> osc N").background_(EHE_gui_color.env(2));
 		v.decorator.nextLine;
-		StaticText(v, w@h2).string_("env 4 -> osc N").background_(EHE_gui_color.env(3));
+		
+		StaticText(v, w@h2).string_("DC -> osc N").background_(EHE_gui_color.dc(0));
 		v.decorator.nextLine;
-		StaticText(v, w@h2).string_("osc 1 -> osc N").background_(EHE_gui_color.vca(0));
+		StaticText(v, w@h2).string_("env 1 -> osc N").background_(EHE_gui_color.env(0, 0));
 		v.decorator.nextLine;
-		StaticText(v, w@h2).string_("osc 2 -> osc N").background_(EHE_gui_color.vca(1));
+		StaticText(v, w@h2).string_("env 2 -> osc N").background_(EHE_gui_color.env(1, 0));
 		v.decorator.nextLine;
-		StaticText(v, w@h2).string_("osc 3 -> osc N").background_(EHE_gui_color.vca(2));
+		StaticText(v, w@h2).string_("env 3 -> osc N").background_(EHE_gui_color.env(2, 0));
 		v.decorator.nextLine;
-		StaticText(v, w@h2).string_("osc 4 -> osc N").background_(EHE_gui_color.vca(3));
+		StaticText(v, w@h2).string_("env 4 -> osc N").background_(EHE_gui_color.env(3, 0));
 		v.decorator.nextLine;
-		StaticText(v, w@h2).string_("osc 5 -> osc N").background_(EHE_gui_color.vca(4));
+		StaticText(v, w@h2).string_("osc 1 -> osc N").background_(EHE_gui_color.vca(0, 0));
 		v.decorator.nextLine;
-		StaticText(v, w@h2).string_("osc 6 -> osc N").background_(EHE_gui_color.vca(5));
+		StaticText(v, w@h2).string_("osc 2 -> osc N").background_(EHE_gui_color.vca(1, 0));
 		v.decorator.nextLine;
-		StaticText(v, w@h2).string_("osc 7 -> osc N").background_(EHE_gui_color.vca(6));
+		StaticText(v, w@h2).string_("osc 3 -> osc N").background_(EHE_gui_color.vca(2, 0));
 		v.decorator.nextLine;
-		StaticText(v, w@h2).string_("osc 8 -> osc N").background_(EHE_gui_color.vca(7));
+		StaticText(v, w@h2).string_("osc 4 -> osc N").background_(EHE_gui_color.vca(3, 0));
+		v.decorator.nextLine;
+		StaticText(v, w@h2).string_("osc 5 -> osc N").background_(EHE_gui_color.vca(4, 0));
+		v.decorator.nextLine;
+		StaticText(v, w@h2).string_("osc 6 -> osc N").background_(EHE_gui_color.vca(5, 0));
+		v.decorator.nextLine;
+		StaticText(v, w@h2).string_("osc 7 -> osc N").background_(EHE_gui_color.vca(6, 0));
+		v.decorator.nextLine;
+		StaticText(v, w@h2).string_("osc 8 -> osc N").background_(EHE_gui_color.vca(7, 0));
 		v.decorator.nextLine;
 	}
 

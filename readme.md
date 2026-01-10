@@ -30,6 +30,20 @@ see the **guide**: [link](guide/index.md)
 
 oscillator frequency changes now crossfade over the same duration as the preset morph time. set the morph time in the morph window (the "time" number box); the crossfade will match this value. by default this is 100 seconds.
 
+### envelope timing modulation
+
+each of the 4 envelope followers supports dynamic timing modulation on both rise and fall phases:
+
+- in-rising (`mod_in_rise`): scales the rise time based on the rectified input amplitude. positive values lengthen rise when the input is loud; negative values shorten rise.
+- in-falling (`mod_in_fall`): scales the fall time based on the rectified input amplitude. positive values lengthen fall; negative values shorten fall.
+- out-rising (`mod_out_rise`): scales the rise time based on the envelope’s own output amplitude (feedback). positive values lengthen rise with larger envelopes; negative values shorten rise.
+- out-falling (`mod_out_fall`): scales the fall time based on the envelope output amplitude. positive values lengthen fall; negative values shorten fall.
+
+details:
+- modulation is applied multiplicatively to the base `rise` / `fall` times and is clamped to a minimum duration to keep behavior stable.
+- the envelope `shape` blends between a slew-limited and lag-based response.
+- these modulation parameters are included in presets and participate in morphing, so changes will interpolate across morphs.
+
 ## ROADMAP
 
 in rough priority order:

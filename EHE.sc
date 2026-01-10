@@ -409,7 +409,7 @@ EHE_defs {
 
 		// oscillator node
 		SynthDef.new(\ehe_osc, {
-			var aenv = EnvGen.kr(Env.asr(1, 1, 1), \gate.kr(1), timeScale: \fade_time.kr(21), doneAction:2);
+			var aenv = EnvGen.kr(Env.asr(1, 1, 1, curve:\sine), \gate.kr(1), timeScale: \fade_time.kr(21), doneAction:2);
 			var drift = LFNoise2.kr(\drift_rate.kr(0.01), \drift_st.kr(0.07));
 			var fb_drift = LFNoise2.kr(\fb_drift_rate.kr(0.01));
 			var feedback = \feedback.kr(1/7) * fb_drift.max(\fb_floor.kr(0.02));
@@ -1446,17 +1446,39 @@ EHE_state_morph {
 
 	*new_morphed_state { arg state_a, state_b, t;
 		var state = Dictionary.new;
-		var ks = state_a.keys.asArray;
-		ks.do({ arg k;
+		var keys_a = state_a.keys;
+
+		// determine if there are any keys in `b` but not in `a`
+		var keys_b = state_b.keys;
+		var keys_b_not_a = keys_b - keys_a;
+
+		keys_a.asArray.do({ arg k;
 			if (k.asString.contains("freq_"), {
 				// skip frequencies; they are handled separately via crossfading
 			}, {
 				// linear interpolation for everything else
 				var va = state_a[k];
 				var vb = state_b[k];
-				state[k] = va + ((vb - va) * t);
+				if (vb.isNil, {
+					state[k] = va;
+				}, {
+					state[k] = va + ((vb - va) * t);
+				});
+				// NB: `va` can't be nil since we got the key from there
 			});
 		});
+
+		if (keys_b_not_a.size > 0, {
+			keys_b_not_a.asArray.do({ arg k;
+				if (k.asString.contains("freq_"), {
+					// skip frequencies; they are handled separately via crossfading
+				}, {
+					// starting state doesn't contain this value, so set it directly
+					state[k] = state_b[k];
+				})
+			});
+		});
+
 		^state
 	}
 
@@ -1618,6 +1640,7 @@ EHE_morph_gui {
 				[filename, Color.black, Color.white]
 			])
 			.action_({
+				status.string_("preparing morph...");
 				EHE.mph.morph_to_file(path);
 				buts.do({ arg b;
 					b.font_(Font.default.pointSize_(16));

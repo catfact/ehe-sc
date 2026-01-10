@@ -44,6 +44,16 @@ details:
 - the envelope `shape` blends between a slew-limited and lag-based response.
 - these modulation parameters are included in presets and participate in morphing, so changes will interpolate across morphs.
 
+### vca offset
+
+each oscillator's VCA includes an **offset** parameter that adds a constant DC bias to the VCA gain before applying the modulation. this allows:
+
+- **softening** of the modulation response by raising the baseline gain (especially effective with negative or inverting modulators)
+- **centering** of the VCA output in the presence of asymmetric modulation sources
+- **pre-emphasis** of quieter oscillators or those receiving weak modulation signals
+
+offset values range from -1 to +1; zero is the neutral point with no DC bias.
+
 ## ROADMAP
 
 in rough priority order:

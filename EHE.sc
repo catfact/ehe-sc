@@ -142,6 +142,11 @@ EHE {
 		// envelopes: 4x mono
 		b[\env] = Array.fill(4, { Bus.audio(s, 1) });
 
+
+		// we want to recify the VCA control signals, but only coming from envelopes
+		// so, we need a rectifier node and a dedicated bus, per VCA
+		b[\vca_cv_rect] = Array.fill(EHE.numOscs, { Bus.audio(s, 1) });	
+
 		// per-oscillator VCA control inputs...
 		b[\vca_cv] = Array.fill(EHE.numOscs, { Bus.audio(s, 1) });
 
@@ -175,6 +180,7 @@ EHE {
 		// patches
 		g[\env_vca] = Group.before(g[\vca]);
 		g[\vca_vca] = Group.before(g[\vca]);
+		g[\cv_rect] = Group.before(g[\vca]);
 		g[\mix] = Group.after(g[\vca]);
 
 		// k-rate monitoring
@@ -227,13 +233,21 @@ EHE {
 			], target:g[\vca]);
 		});
 
+		// we want to recify the VCA control signals, but only coming from envelopes
+		// so, we need a rectifier node and a dedicated bus, per VCA
+		z[\vca_cv_rect] = Array.fill(EHE.numOscs, { arg i;
+			Synth.new(\ehe_rectify, [
+				\in, b[\vca_cv_rect][i].index,
+				\out, b[\vca_cv][i].index
+			], target:g[\cv_rect]);
+		});
 
-		// patch cables from envelopes to VCA CV inputs
+		// patch cables from envelopes to VCA CV rectified inputs
 		z[\env_vca] = Array.fill(4, { arg i;
 			Array.fill(EHE.numOscs, { arg j;
 				Synth.new(\ehe_patch, [
-					\out, b[\vca_cv][j].index,
 					\in, b[\env][i].index,
+					\out, b[\vca_cv_rect][j].index,
 				], target:g[\env_vca]);
 			});
 		});
@@ -242,8 +256,8 @@ EHE {
 		z[\vca_vca] = Array.fill(EHE.numOscs, { arg i;
 			Array.fill(EHE.numOscs, { arg j;
 				Synth.new(\ehe_patch_delay, [
-					out: b[\vca_cv][j].index,
 					in: b[\vca_out][i].index,
+					out: b[\vca_cv][j].index,
 				], target:g[\vca_vca]);
 			});
 		});
@@ -423,8 +437,10 @@ EHE_defs {
 		SynthDef.new(\ehe_vca, {
 			var level = K2A.ar(\level.kr(1).lag(1));
 			var mod = In.ar(\mod.kr(1));
+			var offset = K2A.ar(\offset.kr(0).lag(1));
 			//var gain = level * mod.softclip;
-			var gain = level * mod;
+			var gain = (level * mod) + offset;
+			gain = (gain * 0.25).softclip * 4;
 			Out.ar(\out.kr(0), In.ar(\in.kr(0)) * gain);
 		}).send(s);
 
@@ -433,13 +449,10 @@ EHE_defs {
 			var c = \c.kr;
 			var x = In.ar(\in.kr);
 			// scaled offset when inverting
-			var a = (c < 0) * (c * -1);
 			var lag = \lag.kr(0.1);
-			a = a.min(1).max(0);
 			c = c.min(4).max(-4);
-			a = Lag.kr(a, lag);
 			c = Lag.kr(c, lag);
-			x = (x * c) + a;
+			x = (x * c);
 			Out.ar(\out.kr, x);
 		}).send(s);
 
@@ -447,14 +460,10 @@ EHE_defs {
 		SynthDef.new(\ehe_patch_delay,{
 			var c = \c.kr;
 			var x = InFeedback.ar(\in.kr);
-			// scaled offset when inverting
-			var a = (c < 0) * (c * -1);
 			var lag = \lag.kr(4.0);
-			a = a.min(1).max(0);
 			c = c.min(1).max(-1);
-			a = Lag.kr(a, lag);
 			c = Lag.kr(c, lag);
-			x = (x * c) + a;
+			x = (x * c);
 			x = BufDelayL.ar(LocalBuf(s.sampleRate * 0.1), x, \delay.kr(0.09).min(0.099));
 			Out.ar(\out.kr, x);
 		}).send(s);
@@ -464,6 +473,13 @@ EHE_defs {
 			var level = Lag.kr(\level.kr(0), \level_lag.kr(1));
 			var pos = Lag.kr(\pos.kr(0), \pos_lag.kr(1));
 			Out.ar(\out.kr(0), Pan2.ar(In.ar(\in.kr(0)), pos, level))
+		}).send(s);
+
+		// simple half-wave rectifier node
+		SynthDef.new(\ehe_rectify, {
+			var snd = In.ar(\in.kr(0));
+			snd = snd * (snd > 0);
+			Out.ar(\out.kr(0), snd);
 		}).send(s);
 
 		// buffer playback node
@@ -489,7 +505,6 @@ EHE_defs {
 			var snd = SoundIn.ar(\in.kr(0));
 			Out.ar(\out.kr(0), snd * \level.kr(1));
 		}).send(s);
-
 	}
 
 }
@@ -498,19 +513,24 @@ EHE_defs {
 // ---- GUI
 
 EHE_gui_color {
-	// TODO
-	*env { arg idx;
+	*dc { arg i;
+		^Color.new(0.2, 0.8, 0.2).blend(Color.grey, 0.7).lighten(if(i.even, {0.5}, {0.3}));
 	}
 
-	*vca { arg idx;
+	*env { arg i, j;
+		^Color.new(0.6, 0.6, 0.8).blend(Color.grey, if(i.even, {0.8}, {0.6})).lighten(if(j.even, {0.5}, {0.3}));
+	}
+
+	*vca { arg i, j;
+		^Color.new(0.4, 0.8, 0.8).blend(Color.grey, if(i.even, {0.8}, {0.6})).lighten(if(j.even, {0.5}, {0.3}));
 	}
 }
 
 EHE_gui_mix_channel : View {
 	// sliders
-	var <sl_level, <sl_pan;
+	var <sl_level, <sl_pan;//, <sl_offset;
 	// numeric displays
-	var <num_level, <num_pan;
+	var <num_level, <num_pan;//, <num_offset;
 
 	*new { arg parent, bounds, synth;
 		^super.new(parent, bounds).init(parent, bounds, synth);
@@ -558,10 +578,13 @@ EHE_gui_mix_channel : View {
 
 }
 
+//------------------------------------------------
+//-- modulation controls for a single channel
+
 EHE_gui_mod_channel : View {
-	// modulation levels from envelopes
-	var <sl_env;
-	var <num_env;
+	// modulation levels from DC / envelopes
+	var <sl_env, <sl_offset;
+	var <num_env, <num_offset;
 	// modulation levels from VCAs
 	var <sl_vca;
 	var <num_vca;
@@ -586,9 +609,32 @@ EHE_gui_mod_channel : View {
 		sl_vca = Array.newClear(EHE.numOscs);
 		num_vca = Array.newClear(EHE.numOscs);
 
+		sl_offset = Slider(this, w@20).thumbSize_(3);
+		sl_offset.background_(EHE_gui_color.dc(channel));
+		h = h - 20;
+
+		num_offset = NumberBox(this, w@20);
+		num_offset.background_(EHE_gui_color.dc(channel));
+		h = h - 20;
+
+		sl_offset.action_({ arg sl;
+			var val = sl.value.linlin(0, 1, -1, 1);
+			num_offset.valueAction_(val);
+		});
+
+		num_offset.action_({ arg num;
+			var val = num.value;
+			EHE.ehe.z[\vca][channel].set(\offset, val);
+			sl_offset.value = val.linlin(-1, 1, 0, 1);
+		});
+
+		num_offset.scroll_step_(0.1);
+		
 		4.do({ arg i;
 			sl_env[i] = Slider(this, w@20).thumbSize_(3);
+			sl_env[i].background_(EHE_gui_color.env(i, channel));
 			num_env[i] = NumberBox(this, w@20);
+			num_env[i].background_(EHE_gui_color.env(i, channel));
 			sl_env[i].action_({ arg sl;
 				//var val = sl.value.linlin(0, 1, -2, 2);
 				var val = slSpec.map(sl.value);
@@ -603,7 +649,9 @@ EHE_gui_mod_channel : View {
 
 		EHE.numOscs.do({ arg i;
 			sl_vca[i] = Slider(this, w@20).thumbSize_(3);
+			sl_vca[i].background_(EHE_gui_color.vca(i, channel));
 			num_vca[i] = NumberBox(this, w@20);
+			num_vca[i].background_(EHE_gui_color.vca(i, channel));
 			sl_vca[i].action_({ arg sl;
 				//var val = sl.value.linlin(0, 1, -2, 2);
 				var val = slSpec.map(sl.value);
@@ -620,7 +668,7 @@ EHE_gui_mod_channel : View {
 }
 
 
-// "main" / global section of the GUIß
+// "main" / global section of the GUI
 EHE_gui_main : View {
 	var <sl_level;
 	var <num_level;
@@ -696,13 +744,16 @@ EHE_gui_main : View {
 		});
 		num_level.action_({ arg num;
 			var val = num.value.dbamp;
+			sl_level.value = if (val < 0.25, { val}, { val.linlin(0.25.ampdb, 12, 0.25, 1.0) });
 			EHE.ehe.z[\out].set(\level, val);
 		});
 	}
 }
 
-EHE_gui_env_mod : View {
+//------------------------------------------------
+//-- envelope modulation controls
 
+EHE_gui_env_mod : View {
 	var <sl_rise;
 	var <num_rise;
 	var <sl_fall;
@@ -872,18 +923,18 @@ EHE_gui {
 	init {
 		e = EHE.ehe;
 
-		w = Window.new("EHE", Rect(100, 100, 1300, 800));
+		w = Window.new("EHE", Rect(100, 100, 1300, 900));
 		w.front;
 		w.view.decorator = FlowLayout(w.view.bounds, 0@0, 20@0);
 
-		labels = View.new(w, 120@800);
+		labels = View.new(w, 120@900);
 		labels.decorator = FlowLayout(w.view.bounds, 0@0, 0@0);
 		this.add_labels(labels);
 
-		ui = View.new(w, 700@800);
+		ui = View.new(w, 700@900);
 		ui.decorator = FlowLayout(w.view.bounds, 0@0, 0@0);
 
-		mainview = View.new(w, 120@800);
+		mainview = View.new(w, 120@900);
 		//w.view.decorator
 		env_mod_view = EHE_gui_env_mod.new(w, Rect(0, 0, 300, 800));
 
@@ -901,7 +952,7 @@ EHE_gui {
 		ui.decorator.nextLine;
 
 		mod_channels = Array.fill(EHE.numOscs, { arg i;
-			EHE_gui_mod_channel(ui, Rect(0, 0, 80, 500), i);
+			EHE_gui_mod_channel(ui, Rect(0, 0, 80, 600), i);
 		});
 
 		main = EHE_gui_main.new(mainview, Rect(0, 0, 120, 740));
@@ -923,14 +974,11 @@ EHE_gui {
 	add_labels { arg v;
 		var h = 20;
 		var w = v.bounds.width;
-		var h2 = h * 2;
+		var h2 = h * 2 + 1;
 		StaticText(v, w@h).string_("frequency Hz");
 		v.decorator.nextLine;
 		StaticText(v, w@h).string_("pan position");
 		v.decorator.nextLine;
-		StaticText(v, w@h).string_("");
-		v.decorator.nextLine;
-
 		StaticText(v, w@h).string_("osc level");
 		v.decorator.nextLine;
 
@@ -939,29 +987,39 @@ EHE_gui {
 		v.decorator.nextLine;
 		/////////
 
-		StaticText(v, w@h2).string_("env 1 -> osc N");
 		v.decorator.nextLine;
-		StaticText(v, w@h2).string_("env 2 -> osc N");
 		v.decorator.nextLine;
-		StaticText(v, w@h2).string_("env 3 -> osc N");
 		v.decorator.nextLine;
-		StaticText(v, w@h2).string_("env 4 -> osc N");
 		v.decorator.nextLine;
-		StaticText(v, w@h2).string_("osc 1 -> osc N");
 		v.decorator.nextLine;
-		StaticText(v, w@h2).string_("osc 2 -> osc N");
 		v.decorator.nextLine;
-		StaticText(v, w@h2).string_("osc 3 -> osc N");
 		v.decorator.nextLine;
-		StaticText(v, w@h2).string_("osc 4 -> osc N");
+		
+		StaticText(v, w@h2).string_("DC -> osc N").background_(EHE_gui_color.dc(0));
 		v.decorator.nextLine;
-		StaticText(v, w@h2).string_("osc 5 -> osc N");
+		StaticText(v, w@h2).string_("env 1 -> osc N").background_(EHE_gui_color.env(0, 0));
 		v.decorator.nextLine;
-		StaticText(v, w@h2).string_("osc 6 -> osc N");
+		StaticText(v, w@h2).string_("env 2 -> osc N").background_(EHE_gui_color.env(1, 0));
 		v.decorator.nextLine;
-		StaticText(v, w@h2).string_("osc 7 -> osc N");
+		StaticText(v, w@h2).string_("env 3 -> osc N").background_(EHE_gui_color.env(2, 0));
 		v.decorator.nextLine;
-		StaticText(v, w@h2).string_("osc 8 -> osc N");
+		StaticText(v, w@h2).string_("env 4 -> osc N").background_(EHE_gui_color.env(3, 0));
+		v.decorator.nextLine;
+		StaticText(v, w@h2).string_("osc 1 -> osc N").background_(EHE_gui_color.vca(0, 0));
+		v.decorator.nextLine;
+		StaticText(v, w@h2).string_("osc 2 -> osc N").background_(EHE_gui_color.vca(1, 0));
+		v.decorator.nextLine;
+		StaticText(v, w@h2).string_("osc 3 -> osc N").background_(EHE_gui_color.vca(2, 0));
+		v.decorator.nextLine;
+		StaticText(v, w@h2).string_("osc 4 -> osc N").background_(EHE_gui_color.vca(3, 0));
+		v.decorator.nextLine;
+		StaticText(v, w@h2).string_("osc 5 -> osc N").background_(EHE_gui_color.vca(4, 0));
+		v.decorator.nextLine;
+		StaticText(v, w@h2).string_("osc 6 -> osc N").background_(EHE_gui_color.vca(5, 0));
+		v.decorator.nextLine;
+		StaticText(v, w@h2).string_("osc 7 -> osc N").background_(EHE_gui_color.vca(6, 0));
+		v.decorator.nextLine;
+		StaticText(v, w@h2).string_("osc 8 -> osc N").background_(EHE_gui_color.vca(7, 0));
 		v.decorator.nextLine;
 	}
 
@@ -986,6 +1044,11 @@ EHE_gui {
 	update_osc_pan { arg osc_idx, pos;
 		mix_channels[osc_idx].sl_pan.value = pos.linlin(-1, 1, 0, 1);
 		mix_channels[osc_idx].num_pan.value = pos;
+	}
+
+	update_osc_offset { arg osc_idx, offset;
+		mod_channels[osc_idx].sl_offset.value = offset.linlin(-1, 1, 0, 1);
+		mod_channels[osc_idx].num_offset.value = offset;
 	}
 
 	update_mod_env { arg osc_idx, env_idx, val;
@@ -1054,6 +1117,8 @@ EHE_state {
 			k = ("level_"++(i+1)).asSymbol;
 			state[k] = 0;
 			k = ("pan_"++(i+1)).asSymbol;
+			state[k] = 0;
+			k = ("offset_"++(i+1)).asSymbol;
 			state[k] = 0;
 
 			4.do({ arg j;
@@ -1125,6 +1190,11 @@ EHE_state {
 			});
 			//gui.update_osc_pan(i, x[k]);
 
+			k = ("offset_"++(i+1)).asSymbol;
+			if (x.includesKey(k), {
+				e.z[\vca][i].set(\offset, x[k]);
+			});
+
 			4.do({ arg j;
 				k = ("mod_env_"++(j+1)++"_"++(i+1)).asSymbol;
 				if (x.includesKey(k), {
@@ -1191,6 +1261,9 @@ EHE_state {
 			k = ("pan_"++(i+1)).asSymbol;
 			state[k] = gui.mix_channels[i].sl_pan.value.linlin(0, 1, -1, 1);
 
+			k = ("offset_"++(i+1)).asSymbol;
+			state[k] = gui.mix_channels[i].sl_offset.value.linlin(0, 1, -1, 1);
+
 			4.do({ arg j;
 				k = ("mod_env_"++(j+1)++"_"++(i+1)).asSymbol;
 				state[k] = gui.mod_channels[i].num_env[j].value;
@@ -1249,6 +1322,13 @@ EHE_state {
 
 				k = ("pan_"++(i+1)).asSymbol;
 				e.z[\mix][i].get(\pos, { arg val;
+					state[k] = val;
+					c.unhang;
+				});
+				c.hang;
+
+				k = ("offset_"++(i+1)).asSymbol;
+				e.z[\vca][i].get(\offset, { arg val;
 					state[k] = val;
 					c.unhang;
 				});
@@ -1367,6 +1447,10 @@ EHE_state {
 				k = ("pan_"++(i+1)).asSymbol;
 				if (state.includesKey(k), {
 					gui.update_osc_pan(i, state[k]);
+				});
+				k = ("offset_"++(i+1)).asSymbol;
+				if (state.includesKey(k), {
+					gui.update_osc_offset(i, state[k]);
 				});
 				4.do({ arg j;
 					k = ("mod_env_"++(j+1)++"_"++(i+1)).asSymbol;

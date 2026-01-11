@@ -40,19 +40,15 @@ each of the 4 envelope followers supports dynamic timing modulation on both rise
 - out-falling (`mod_out_fall`): scales the fall time based on the envelope output amplitude. positive values lengthen fall; negative values shorten fall.
 
 details:
-- modulation is applied multiplicatively to the base `rise` / `fall` times and is clamped to a minimum duration to keep behavior stable.
-- the envelope `shape` blends between a slew-limited and lag-based response.
-- these modulation parameters are included in presets and participate in morphing, so changes will interpolate across morphs.
+- modulation is applied multiplicatively to the base `rise` / `fall` times and is clamped to a minimum duration
+- the envelope `shape` blends between a slew-limited and lag-based response
+- these modulation parameters are included in presets and participate in morphing
 
-### vca offset
+### DC offset to VCA CV
 
-each oscillator's VCA includes an **offset** parameter that adds a constant DC bias to the VCA gain before applying the modulation. this allows:
+each oscillator has a dedicated **DC offset source** feeding its `vca_cv` control bus. this is implemented as a separate synth (`\ehe_dc`) per oscillator and is controlled in the modulation panel by the top row labeled "DC → osc N" (number-box and slider).
 
-- **softening** of the modulation response by raising the baseline gain (especially effective with negative or inverting modulators)
-- **centering** of the VCA output in the presence of asymmetric modulation sources
-- **pre-emphasis** of quieter oscillators or those receiving weak modulation signals
-
-offset values range from -1 to +1; zero is the neutral point with no DC bias.
+scaled envelope signals and DC offsets are summed together and rectified before each VCA level input. VCA -> VCA signals are *not* rectifed. thus, negative envelope weights and DC offsets do not by themselves produce inverted non-zero amplitudes.
 
 ## ROADMAP
 

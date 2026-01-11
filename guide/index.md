@@ -37,6 +37,16 @@ Modulation sliders, like pan sliders, are bidirectional:
 - at 100% right, the full amount of the modulator signal is *added* to the amplitude of the carrier (potentially with gain)
 - at 100% left, the modulation is *inverted*: the modulator is subtracted from the carrier's level, and a proportional constant offset is added.
 
+#### DC offset (top row)
+
+At the top of the modulation panel, each oscillator `N` has a "DC → osc N" number-box and slider. This controls a dedicated DC source feeding that oscillator’s `vca_cv` bus (implemented by a per-oscillator `\ehe_dc` synth). Use it to bias the VCA control between -1 and +1:
+
+- increase baseline control to soften modulation or emphasize output
+- compensate for inverted/asymmetric modulation
+- bias oscillators receiving weak modulation
+
+These DC offsets are saved in presets (`offset_N`) and interpolate during morphs.
+
 ### main controls
 
 ![image](img/editor_main.png)
@@ -58,6 +68,7 @@ There are 4 "scope" windows showing multi-channel, oscilloscope-style displays o
 - **`src`** : source signals, live input and/or playback (one channel per input)
 - **`env`** : "control-voltage" envelopes derived from `src` amplitudes (one channel per input)
 - **`vca_cv`** : "control-voltage" inputs for virtual VCA nodes (1 channel per oscillator)
+	- shows the sum of envelope sources, feedback sources, and the DC offset per oscillator
 - **`vca_out`** : output of each oscillator after amplitude modulation
 
 ## preset / morph window

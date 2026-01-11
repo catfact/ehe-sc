@@ -242,6 +242,14 @@ EHE {
 			], target:g[\cv_rect]);
 		});
 
+		// DC offset sources to vca_cv (per oscillator)
+		z[\vca_dc] = Array.fill(EHE.numOscs, { arg i;
+			Synth.new(\ehe_dc, [	
+				\out, b[\vca_cv_rect][i].index,
+				\val, 0
+			], target:g[\cv_rect]);
+		});
+
 		// patch cables from envelopes to VCA CV rectified inputs
 		z[\env_vca] = Array.fill(4, { arg i;
 			Array.fill(EHE.numOscs, { arg j;
@@ -293,55 +301,12 @@ EHE {
 
 	//-----------------------------------------------------------------
 	// ---- initial settings
+
 	init_params {
-
+		/// seems like we always want quite a bit of gain at the inputs...
 		4.do({ arg i;
-			z[\env][i].set(\gain, 24.dbamp, \c, 0.dbamp);
+			z[\env][i].set(\gain, 6.dbamp, \c, 0.dbamp);
 		});
-
-		z[\mix][0].set(\level, -6.dbamp,  \pos, 0);
-		z[\mix][1].set(\level, -6.dbamp,  \pos, -0.2);
-		z[\mix][2].set(\level, -6.dbamp,  \pos, 0.2);
-		z[\mix][3].set(\level, -6.dbamp,  \pos, -0.4);
-		z[\mix][4].set(\level, -6.dbamp,  \pos, 0.4);
-		z[\mix][5].set(\level, -10.dbamp, \pos, -0.8);
-		z[\mix][6].set(\level, -10.dbamp, \pos, 0.8);
-		z[\mix][7].set(\level, -12.dbamp, \pos, 0);
-
-		1.wait;
-
-		//--- patch levels
-
-		// direct env to osc for the first 4 oscs
-		z[\env_vca][0][0].set(\c, 1);
-		z[\env_vca][1][1].set(\c, 1);
-		z[\env_vca][2][2].set(\c, 1);
-		z[\env_vca][3][3].set(\c, 1);
-
-		// for last 3 oscs, 1x direct (scaled) feedback connection,
-		// and 3x inverting env->osc connections
-
-		// e = EHE.ehe;
-		z[\vca_vca][0][4].set(\c, 0.85);
-		z[\env_vca][1][4].set(\c, -0.125);
-		z[\env_vca][2][4].set(\c, -0.125);
-		z[\env_vca][3][4].set(\c, -0.125);
-
-		z[\env_vca][0][5].set(\c, -0.125);
-		z[\vca_vca][1][5].set(\c, 0.85);
-		z[\env_vca][2][5].set(\c, -0.125);
-		z[\env_vca][3][5].set(\c, -0.125);
-
-		z[\env_vca][0][6].set(\c, -0.125);
-		z[\env_vca][1][6].set(\c, -0.125);
-		z[\vca_vca][2][6].set(\c, 0.85);
-		z[\env_vca][3][6].set(\c, -0.125);
-
-		z[\env_vca][0][7].set(\c, -0.125);
-		z[\env_vca][1][7].set(\c, -0.125);
-		z[\vca_vca][2][7].set(\c, -0.125);
-		z[\env_vca][3][7].set(\c, 0.85);
-
 	}
 
 	seek_playback {
@@ -437,9 +402,8 @@ EHE_defs {
 		SynthDef.new(\ehe_vca, {
 			var level = K2A.ar(\level.kr(1).lag(1));
 			var mod = In.ar(\mod.kr(1));
-			var offset = K2A.ar(\offset.kr(0).lag(1));
 			//var gain = level * mod.softclip;
-			var gain = (level * mod) + offset;
+			var gain = (level * mod);
 			gain = (gain * 0.25).softclip * 4;
 			Out.ar(\out.kr(0), In.ar(\in.kr(0)) * gain);
 		}).send(s);
@@ -480,6 +444,12 @@ EHE_defs {
 			var snd = In.ar(\in.kr(0));
 			snd = snd * (snd > 0);
 			Out.ar(\out.kr(0), snd);
+		}).send(s);
+
+		// DC offset source (audio-rate constant with smoothing)
+		SynthDef.new(\ehe_dc, {
+			var val = K2A.ar(\val.kr(0).lag(\lag.kr(0.1)));
+			Out.ar(\out.kr(0), val);
 		}).send(s);
 
 		// buffer playback node
@@ -624,7 +594,7 @@ EHE_gui_mod_channel : View {
 
 		num_offset.action_({ arg num;
 			var val = num.value;
-			EHE.ehe.z[\vca][channel].set(\offset, val);
+			EHE.ehe.z[\vca_dc][channel].set(\val, val);
 			sl_offset.value = val.linlin(-1, 1, 0, 1);
 		});
 
@@ -1192,7 +1162,7 @@ EHE_state {
 
 			k = ("offset_"++(i+1)).asSymbol;
 			if (x.includesKey(k), {
-				e.z[\vca][i].set(\offset, x[k]);
+				e.z[\vca_dc][i].set(\val, x[k]);
 			});
 
 			4.do({ arg j;
@@ -1262,7 +1232,7 @@ EHE_state {
 			state[k] = gui.mix_channels[i].sl_pan.value.linlin(0, 1, -1, 1);
 
 			k = ("offset_"++(i+1)).asSymbol;
-			state[k] = gui.mix_channels[i].sl_offset.value.linlin(0, 1, -1, 1);
+			state[k] = gui.mod_channels[i].num_offset.value;
 
 			4.do({ arg j;
 				k = ("mod_env_"++(j+1)++"_"++(i+1)).asSymbol;
@@ -1328,7 +1298,7 @@ EHE_state {
 				c.hang;
 
 				k = ("offset_"++(i+1)).asSymbol;
-				e.z[\vca][i].get(\offset, { arg val;
+				e.z[\vca_dc][i].get(\val, { arg val;
 					state[k] = val;
 					c.unhang;
 				});

@@ -145,7 +145,7 @@ EHE {
 
 		// we want to recify the VCA control signals, but only coming from envelopes
 		// so, we need a rectifier node and a dedicated bus, per VCA
-		b[\vca_cv_rect] = Array.fill(EHE.numOscs, { Bus.audio(s, 1) });	
+		b[\vca_cv_rect] = Array.fill(EHE.numOscs, { Bus.audio(s, 1) });
 
 		// per-oscillator VCA control inputs...
 		b[\vca_cv] = Array.fill(EHE.numOscs, { Bus.audio(s, 1) });
@@ -244,7 +244,7 @@ EHE {
 
 		// DC offset sources to vca_cv (per oscillator)
 		z[\vca_dc] = Array.fill(EHE.numOscs, { arg i;
-			Synth.new(\ehe_dc, [	
+			Synth.new(\ehe_dc, [
 				\out, b[\vca_cv_rect][i].index,
 				\val, 0
 			], target:g[\cv_rect]);
@@ -483,16 +483,19 @@ EHE_defs {
 // ---- GUI
 
 EHE_gui_color {
+	*bg { ^Color.new(0.95, 0.95, 0.95) }
+	*panel { ^Color.new(0.92, 0.92, 0.92) }
+	*fg { ^Color.black }
 	*dc { arg i;
-		^Color.new(0.2, 0.8, 0.2).blend(Color.grey, 0.7).lighten(if(i.even, {0.5}, {0.3}));
+		^Color.new(0.2, 0.8, 0.2).blend(Color.grey, 0.7).lighten(0.4).lighten(if(i.even, {0.5}, {0.1}));
 	}
 
 	*env { arg i, j;
-		^Color.new(0.6, 0.6, 0.8).blend(Color.grey, if(i.even, {0.8}, {0.6})).lighten(if(j.even, {0.5}, {0.3}));
+		^Color.new(0.6, 0.6, 0.8).blend(Color.grey, if(i.even, {0.8}, {0.6})).lighten(0.4).lighten(if(j.even, {0.5}, {0.1}));
 	}
 
 	*vca { arg i, j;
-		^Color.new(0.4, 0.8, 0.8).blend(Color.grey, if(i.even, {0.8}, {0.6})).lighten(if(j.even, {0.5}, {0.3}));
+		^Color.new(0.4, 0.8, 0.8).blend(Color.grey, if(i.even, {0.8}, {0.6})).lighten(0.4).lighten(if(j.even, {0.5}, {0.1}));
 	}
 }
 
@@ -513,6 +516,7 @@ EHE_gui_mix_channel : View {
 		this.decorator = FlowLayout(bounds, 0@0, 0@0);
 
 		sl_pan = Slider(this, w@20).thumbSize_(3);
+		sl_pan.thumbSize_(5);
 		h = h - 20;
 		num_pan = NumberBox(this, w@20);
 		h = h - 20;
@@ -527,7 +531,7 @@ EHE_gui_mix_channel : View {
 			sl_pan.value = val.linlin(-1, 1, 0, 1);
 		});
 
-		sl_level = Slider(this, w@(h-20)).thumbSize_(3);
+		sl_level = Slider(this, w@(h-20)).thumbSize_(5);
 		this.decorator.nextLine;
 		num_level = NumberBox(this, w@20);
 
@@ -553,10 +557,8 @@ EHE_gui_mix_channel : View {
 
 EHE_gui_mod_channel : View {
 	// modulation levels from DC / envelopes
-	var <sl_env, <sl_offset;
 	var <num_env, <num_offset;
 	// modulation levels from VCAs
-	var <sl_vca;
 	var <num_vca;
 
 	classvar <slSpec;
@@ -574,63 +576,32 @@ EHE_gui_mod_channel : View {
 		var h = bounds.height;
 
 		this.decorator = FlowLayout(bounds, 0@0, 0@0);
-		sl_env = Array.newClear(4);
 		num_env = Array.newClear(4);
-		sl_vca = Array.newClear(EHE.numOscs);
 		num_vca = Array.newClear(EHE.numOscs);
-
-		sl_offset = Slider(this, w@20).thumbSize_(3);
-		sl_offset.background_(EHE_gui_color.dc(channel));
-		h = h - 20;
 
 		num_offset = NumberBox(this, w@20);
 		num_offset.background_(EHE_gui_color.dc(channel));
-		h = h - 20;
-
-		sl_offset.action_({ arg sl;
-			var val = sl.value.linlin(0, 1, -1, 1);
-			num_offset.valueAction_(val);
-		});
-
 		num_offset.action_({ arg num;
 			var val = num.value;
 			EHE.ehe.z[\vca_dc][channel].set(\val, val);
-			sl_offset.value = val.linlin(-1, 1, 0, 1);
 		});
-
 		num_offset.scroll_step_(0.1);
-		
+
 		4.do({ arg i;
-			sl_env[i] = Slider(this, w@20).thumbSize_(3);
-			sl_env[i].background_(EHE_gui_color.env(i, channel));
 			num_env[i] = NumberBox(this, w@20);
 			num_env[i].background_(EHE_gui_color.env(i, channel));
-			sl_env[i].action_({ arg sl;
-				//var val = sl.value.linlin(0, 1, -2, 2);
-				var val = slSpec.map(sl.value);
-				num_env[i].valueAction_(val);
-			}).value_(0.5);
 			num_env[i].action_({ arg num;
 				var val = num.value;
 				EHE.ehe.z[\env_vca][i][channel].set(\c, val);
-				sl_env[i].value = slSpec.unmap(val);
 			}).scroll_step_(0.1);
 		});
 
 		EHE.numOscs.do({ arg i;
-			sl_vca[i] = Slider(this, w@20).thumbSize_(3);
-			sl_vca[i].background_(EHE_gui_color.vca(i, channel));
 			num_vca[i] = NumberBox(this, w@20);
 			num_vca[i].background_(EHE_gui_color.vca(i, channel));
-			sl_vca[i].action_({ arg sl;
-				//var val = sl.value.linlin(0, 1, -2, 2);
-				var val = slSpec.map(sl.value);
-				num_vca[i].valueAction_(val);
-			});
 			num_vca[i].action_({ arg num;
 				var val = num.value;
 				EHE.ehe.z[\vca_vca][i][channel].set(\c, val);
-				sl_vca[i].value = slSpec.unmap(val);
 			}).scroll_step_(0.1);
 		});
 
@@ -724,19 +695,12 @@ EHE_gui_main : View {
 //-- envelope modulation controls
 
 EHE_gui_env_mod : View {
-	var <sl_rise;
 	var <num_rise;
-	var <sl_fall;
 	var <num_fall;
-	var <sl_shape;
 	var <num_shape;
-	var <sl_mod_in_rise;
 	var <num_mod_in_rise;
-	var <sl_mod_in_fall;
 	var <num_mod_in_fall;
-	var <sl_mod_out_rise;
 	var <num_mod_out_rise;
-	var <sl_mod_out_fall;
 	var <num_mod_out_fall;
 
 	*new { arg parent, bounds;
@@ -750,119 +714,69 @@ EHE_gui_env_mod : View {
 
 		this.decorator = FlowLayout(bounds, 0@0, 0@0);
 
-		sl_rise = Array.newClear(4);
 		num_rise = Array.newClear(4);
-		sl_fall = Array.newClear(4);
 		num_fall = Array.newClear(4);
-		sl_shape = Array.newClear(4);
 		num_shape = Array.newClear(4);
-		sl_mod_in_fall = Array.newClear(4);
 		num_mod_in_fall = Array.newClear(4);
-		sl_mod_in_rise = Array.newClear(4);
 		num_mod_in_rise = Array.newClear(4);
-		sl_mod_out_fall = Array.newClear(4);
 		num_mod_out_fall = Array.newClear(4);
-		sl_mod_out_rise = Array.newClear(4);
 		num_mod_out_rise = Array.newClear(4);
 
 		4.do({ arg i;
 
-			StaticText(this, label_w@20).string_("env " ++ (i+1) ++ " rise:");
-			sl_rise[i] = Slider(this, w@20).thumbSize_(3);
+			StaticText(this, label_w@20).string_("env " ++ (i+1) ++ " rise:").stringColor_(EHE_gui_color.fg);
 			num_rise[i] = NumberBox(this, num_w@20);
-			sl_rise[i].action_({ arg sl;
-				var val = sl.value.linlin(0, 1, EHE.env_dur_min, EHE.env_dur_max);
-				num_rise[i].valueAction_(val);
-			}).value_(EHE.rise_default.linlin(EHE.env_dur_min, EHE.env_dur_max, 0, 1));
 			num_rise[i].action_({ arg num;
 				var val = num.value;
 				EHE.ehe.z[\env][i].set(\rise, val);
-				sl_rise[i].value = val.linlin(EHE.env_dur_min, EHE.env_dur_max, 0, 1);
 			}).scroll_step_(0.1).value_(EHE.rise_default);
 			this.decorator.nextLine;
 
-			StaticText(this, label_w@20).string_("env " ++ (i+1) ++ " fall:");
-			sl_fall[i] = Slider(this, w@20).thumbSize_(3);
+			StaticText(this, label_w@20).string_("env " ++ (i+1) ++ " fall:").stringColor_(EHE_gui_color.fg);
 			num_fall[i] = NumberBox(this, num_w@20);
-			sl_fall[i].action_({ arg sl;
-				var val = sl.value.linlin(0, 1, EHE.env_dur_min, EHE.env_dur_max);
-				num_fall[i].valueAction_(val);
-			}).value_(EHE.fall_default.linlin(EHE.env_dur_min, EHE.env_dur_max, 0, 1));
 			num_fall[i].action_({ arg num;
 				var val = num.value;
 				EHE.ehe.z[\env][i].set(\fall, val);
-				sl_fall[i].value = val.linlin(EHE.env_dur_min, EHE.env_dur_max, 0, 1);
 			}).scroll_step_(0.1).value_(EHE.fall_default);
 			this.decorator.nextLine;
 
-			StaticText(this, label_w@20).string_("env " ++ (i+1) ++ " shape:");
-			sl_shape[i] = Slider(this, w@20).thumbSize_(3);
+			StaticText(this, label_w@20).string_("env " ++ (i+1) ++ " shape:").stringColor_(EHE_gui_color.fg);
 			num_shape[i] = NumberBox(this, num_w@20);
-			sl_shape[i].action_({ arg sl;
-				var val = sl.value.linlin(0, 1, 0, 1);
-				num_shape[i].valueAction_(val);
-			});
 			num_shape[i].action_({ arg num;
 				var val = num.value;
 				EHE.ehe.z[\env][i].set(\shape, val);
-				sl_shape[i].value = val.linlin(0, 1, 0, 1);
 			}).scroll_step_(0.1);
 			this.decorator.nextLine;
 
-			StaticText(this, label_w@20).string_("env " ++ (i+1) ++ " mod in rise:");
-			sl_mod_in_rise[i] = Slider(this, w@20).thumbSize_(3);
+			StaticText(this, label_w@20).string_("env " ++ (i+1) ++ " mod in rise:").stringColor_(EHE_gui_color.fg);
 			num_mod_in_rise[i] = NumberBox(this, num_w@20);
-			sl_mod_in_rise[i].action_({ arg sl;
-				var val = sl.value.linlin(0, 1, -1, 1);
-				num_mod_in_rise[i].valueAction_(val);
-			});
 			num_mod_in_rise[i].action_({ arg num;
 				var val = num.value;
 				EHE.ehe.z[\env][i].set(\mod_in_rise, val);
-				sl_mod_in_rise[i].value = val.linlin(-1, 1, 0, 1);
 			}).scroll_step_(0.1);
 			this.decorator.nextLine;
 
-			StaticText(this, label_w@20).string_("env " ++ (i+1) ++ " mod in fall:");
-			sl_mod_in_fall[i] = Slider(this, w@20).thumbSize_(3);
+			StaticText(this, label_w@20).string_("env " ++ (i+1) ++ " mod in fall:").stringColor_(EHE_gui_color.fg);
 			num_mod_in_fall[i] = NumberBox(this, num_w@20);
-			sl_mod_in_fall[i].action_({ arg sl;
-				var val = sl.value.linlin(0, 1, -1, 1);
-				num_mod_in_fall[i].valueAction_(val);
-			});
 			num_mod_in_fall[i].action_({ arg num;
 				var val = num.value;
 				EHE.ehe.z[\env][i].set(\mod_in_fall, val);
-				sl_mod_in_fall[i].value = val.linlin(-1, 1, 0, 1);
 			}).scroll_step_(0.1);
 			this.decorator.nextLine;
 
-			StaticText(this, label_w@20).string_("env " ++ (i+1) ++ " mod out rise:");
-			sl_mod_out_rise[i] = Slider(this, w@20).thumbSize_(3);
+			StaticText(this, label_w@20).string_("env " ++ (i+1) ++ " mod out rise:").stringColor_(EHE_gui_color.fg);
 			num_mod_out_rise[i] = NumberBox(this, num_w@20);
-			sl_mod_out_rise[i].action_({ arg sl;
-				var val = sl.value.linlin(0, 1, -1, 1);
-				num_mod_out_rise[i].valueAction_(val);
-			});
-
 			num_mod_out_rise[i].action_({ arg num;
 				var val = num.value;
 				EHE.ehe.z[\env][i].set(\mod_out_rise, val);
-				sl_mod_out_rise[i].value = val.linlin(-1, 1, 0, 1);
 			}).scroll_step_(0.1);
 			this.decorator.nextLine;
 
-			StaticText(this, label_w@20).string_("env " ++ (i+1) ++ " mod out fall:");
-			sl_mod_out_fall[i] = Slider(this, w@20).thumbSize_(3);
+			StaticText(this, label_w@20).string_("env " ++ (i+1) ++ " mod out fall:").stringColor_(EHE_gui_color.fg);
 			num_mod_out_fall[i] = NumberBox(this, num_w@20);
-			sl_mod_out_fall[i].action_({ arg sl;
-				var val = sl.value.linlin(0, 1, -1, 1);
-				num_mod_out_fall[i].valueAction_(val);
-			});
 			num_mod_out_fall[i].action_({ arg num;
 				var val = num.value;
 				EHE.ehe.z[\env][i].set(\mod_out_fall, val);
-				sl_mod_out_fall[i].value = val.linlin(-1, 1, 0, 1);
 			}).scroll_step_(0.1);
 			this.decorator.nextLine;
 
@@ -893,26 +807,41 @@ EHE_gui {
 	init {
 		e = EHE.ehe;
 
-		w = Window.new("EHE", Rect(100, 100, 1300, 900));
+		w = Window.new("EHE", Rect(100, 100, 1300, 600));
+		w.view.background_(EHE_gui_color.bg);
 		w.front;
 		w.view.decorator = FlowLayout(w.view.bounds, 0@0, 20@0);
 
-		labels = View.new(w, 120@900);
+		labels = View.new(w, 120@600);
+		labels.background_(EHE_gui_color.panel);
 		labels.decorator = FlowLayout(w.view.bounds, 0@0, 0@0);
 		this.add_labels(labels);
 
-		ui = View.new(w, 700@900);
+		ui = View.new(w, 700@700);
+		ui.background_(EHE_gui_color.panel);
 		ui.decorator = FlowLayout(w.view.bounds, 0@0, 0@0);
 
-		mainview = View.new(w, 120@900);
+		mainview = View.new(w, 120@700);
+		mainview.background_(EHE_gui_color.panel);
 		//w.view.decorator
-		env_mod_view = EHE_gui_env_mod.new(w, Rect(0, 0, 300, 800));
+		env_mod_view = EHE_gui_env_mod.new(w, Rect(0, 0, 300, 600));
+		env_mod_view.background_(EHE_gui_color.panel);
+
+		// per-oscillator headers
+		Array.fill(EHE.numOscs, { arg i;
+			var st = StaticText(ui, 80@20);
+			st.string_("osc " ++ (i+1));
+			st.font_(Font.default.boldVariant);
+			st.stringColor_(EHE_gui_color.fg);
+			st.background_(EHE_gui_color.panel);
+		});
+		ui.decorator.nextLine;
 
 		tuning_nums = Array.fill(EHE.numOscs, { arg i;
 			NumberBox(ui, 80@20).action_({ arg numbox;
 				[numbox, numbox.value].postln;
 				EHE.ehe.z[\osc][i].set(\hz, numbox.value);
-			}).scroll_step_(0.1);
+			}).scroll_step_(0.1).background_(EHE_gui_color.panel).stringColor_(EHE_gui_color.fg);
 		});
 		ui.decorator.nextLine;
 
@@ -925,7 +854,7 @@ EHE_gui {
 			EHE_gui_mod_channel(ui, Rect(0, 0, 80, 600), i);
 		});
 
-		main = EHE_gui_main.new(mainview, Rect(0, 0, 120, 740));
+		main = EHE_gui_main.new(mainview, Rect(0, 0, 120, 560));
 
 		//---  scope windows
 		wscope = Event.new;
@@ -944,52 +873,47 @@ EHE_gui {
 	add_labels { arg v;
 		var h = 20;
 		var w = v.bounds.width;
-		var h2 = h * 2 + 1;
-		StaticText(v, w@h).string_("frequency Hz");
+		var rowH = 20; // modulation row height (number box only)
+		StaticText(v, w@h).string_("frequency Hz").stringColor_(EHE_gui_color.fg).background_(EHE_gui_color.panel);
 		v.decorator.nextLine;
-		StaticText(v, w@h).string_("pan position");
+		StaticText(v, w@h).string_("");
 		v.decorator.nextLine;
-		StaticText(v, w@h).string_("osc level");
+		StaticText(v, w@h).string_("pan position").stringColor_(EHE_gui_color.fg).background_(EHE_gui_color.panel);
+		v.decorator.nextLine;
+		StaticText(v, w@h).string_("");
+		v.decorator.nextLine;
+		StaticText(v, w@h).string_("osc level").stringColor_(EHE_gui_color.fg).background_(EHE_gui_color.panel);
 		v.decorator.nextLine;
 
-		//////// spacer
+		// spacer to align to start of modulation section
 		StaticText(v, w@180).string_("");
 		v.decorator.nextLine;
-		/////////
 
+		StaticText(v, w@rowH).string_("DC -> osc N").stringColor_(EHE_gui_color.fg).background_(EHE_gui_color.dc(0));
 		v.decorator.nextLine;
+		StaticText(v, w@rowH).string_("env 1 -> osc N").stringColor_(EHE_gui_color.fg).background_(EHE_gui_color.env(0, 0));
 		v.decorator.nextLine;
+		StaticText(v, w@rowH).string_("env 2 -> osc N").stringColor_(EHE_gui_color.fg).background_(EHE_gui_color.env(1, 0));
 		v.decorator.nextLine;
+		StaticText(v, w@rowH).string_("env 3 -> osc N").stringColor_(EHE_gui_color.fg).background_(EHE_gui_color.env(2, 0));
 		v.decorator.nextLine;
+		StaticText(v, w@rowH).string_("env 4 -> osc N").stringColor_(EHE_gui_color.fg).background_(EHE_gui_color.env(3, 0));
 		v.decorator.nextLine;
+		StaticText(v, w@rowH).string_("osc 1 -> osc N").stringColor_(EHE_gui_color.fg).background_(EHE_gui_color.vca(0, 0));
 		v.decorator.nextLine;
+		StaticText(v, w@rowH).string_("osc 2 -> osc N").stringColor_(EHE_gui_color.fg).background_(EHE_gui_color.vca(1, 0));
 		v.decorator.nextLine;
-		
-		StaticText(v, w@h2).string_("DC -> osc N").background_(EHE_gui_color.dc(0));
+		StaticText(v, w@rowH).string_("osc 3 -> osc N").stringColor_(EHE_gui_color.fg).background_(EHE_gui_color.vca(2, 0));
 		v.decorator.nextLine;
-		StaticText(v, w@h2).string_("env 1 -> osc N").background_(EHE_gui_color.env(0, 0));
+		StaticText(v, w@rowH).string_("osc 4 -> osc N").stringColor_(EHE_gui_color.fg).background_(EHE_gui_color.vca(3, 0));
 		v.decorator.nextLine;
-		StaticText(v, w@h2).string_("env 2 -> osc N").background_(EHE_gui_color.env(1, 0));
+		StaticText(v, w@rowH).string_("osc 5 -> osc N").stringColor_(EHE_gui_color.fg).background_(EHE_gui_color.vca(4, 0));
 		v.decorator.nextLine;
-		StaticText(v, w@h2).string_("env 3 -> osc N").background_(EHE_gui_color.env(2, 0));
+		StaticText(v, w@rowH).string_("osc 6 -> osc N").stringColor_(EHE_gui_color.fg).background_(EHE_gui_color.vca(5, 0));
 		v.decorator.nextLine;
-		StaticText(v, w@h2).string_("env 4 -> osc N").background_(EHE_gui_color.env(3, 0));
+		StaticText(v, w@rowH).string_("osc 7 -> osc N").stringColor_(EHE_gui_color.fg).background_(EHE_gui_color.vca(6, 0));
 		v.decorator.nextLine;
-		StaticText(v, w@h2).string_("osc 1 -> osc N").background_(EHE_gui_color.vca(0, 0));
-		v.decorator.nextLine;
-		StaticText(v, w@h2).string_("osc 2 -> osc N").background_(EHE_gui_color.vca(1, 0));
-		v.decorator.nextLine;
-		StaticText(v, w@h2).string_("osc 3 -> osc N").background_(EHE_gui_color.vca(2, 0));
-		v.decorator.nextLine;
-		StaticText(v, w@h2).string_("osc 4 -> osc N").background_(EHE_gui_color.vca(3, 0));
-		v.decorator.nextLine;
-		StaticText(v, w@h2).string_("osc 5 -> osc N").background_(EHE_gui_color.vca(4, 0));
-		v.decorator.nextLine;
-		StaticText(v, w@h2).string_("osc 6 -> osc N").background_(EHE_gui_color.vca(5, 0));
-		v.decorator.nextLine;
-		StaticText(v, w@h2).string_("osc 7 -> osc N").background_(EHE_gui_color.vca(6, 0));
-		v.decorator.nextLine;
-		StaticText(v, w@h2).string_("osc 8 -> osc N").background_(EHE_gui_color.vca(7, 0));
+		StaticText(v, w@rowH).string_("osc 8 -> osc N").stringColor_(EHE_gui_color.fg).background_(EHE_gui_color.vca(7, 0));
 		v.decorator.nextLine;
 	}
 
@@ -1017,52 +941,42 @@ EHE_gui {
 	}
 
 	update_osc_offset { arg osc_idx, offset;
-		mod_channels[osc_idx].sl_offset.value = offset.linlin(-1, 1, 0, 1);
 		mod_channels[osc_idx].num_offset.value = offset;
 	}
 
 	update_mod_env { arg osc_idx, env_idx, val;
-		mod_channels[osc_idx].sl_env[env_idx].value = EHE_gui_mod_channel.slSpec.unmap(val);
 		mod_channels[osc_idx].num_env[env_idx].value = val;
 	}
 
 	update_mod_vca { arg osc_idx, vca_idx, val;
-		mod_channels[osc_idx].sl_vca[vca_idx].value = EHE_gui_mod_channel.slSpec.unmap(val);
 		mod_channels[osc_idx].num_vca[vca_idx].value = val;
 	}
 
 	update_env_shape { arg env_idx, shape;
-		env_mod_view.sl_shape[env_idx].value = shape;
 		env_mod_view.num_shape[env_idx].value = shape;
 	}
 
 	update_env_rise { arg env_idx, rise;
-		env_mod_view.sl_rise[env_idx].value = rise.linlin(EHE.env_dur_min, EHE.env_dur_max, 0, 1);
 		env_mod_view.num_rise[env_idx].value = rise;
 	}
 
 	update_env_fall { arg env_idx, fall;
-		env_mod_view.sl_fall[env_idx].value = fall.linlin(EHE.env_dur_min, EHE.env_dur_max, 0, 1);
 		env_mod_view.num_fall[env_idx].value = fall;
 	}
 
 	update_env_mod_in_rise { arg env_idx, val;
-		env_mod_view.sl_mod_in_rise[env_idx].value = val.linlin(-1, 1, 0, 1);
 		env_mod_view.num_mod_in_rise[env_idx].value = val;
 	}
 
 	update_env_mod_in_fall { arg env_idx, val;
-		env_mod_view.sl_mod_in_fall[env_idx].value = val.linlin(-1, 1, 0, 1);
 		env_mod_view.num_mod_in_fall[env_idx].value = val;
 	}
 
 	update_env_mod_out_rise { arg env_idx, val;
-		env_mod_view.sl_mod_out_rise[env_idx].value = val.linlin(-1, 1, 0, 1);
 		env_mod_view.num_mod_out_rise[env_idx].value = val;
 	}
 
 	update_env_mod_out_fall { arg env_idx, val;
-		env_mod_view.sl_mod_out_fall[env_idx].value = val.linlin(-1, 1, 0, 1);
 		env_mod_view.num_mod_out_fall[env_idx].value = val;
 	}
 }

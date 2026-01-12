@@ -303,9 +303,27 @@ EHE {
 	// ---- initial settings
 
 	init_params {
+		var default_preset_path;
+
 		/// seems like we always want quite a bit of gain at the inputs...
 		4.do({ arg i;
-			z[\env][i].set(\gain, 6.dbamp, \c, 0.dbamp);
+			z[\env][i].set(\gain, 6.dbamp);
+		});
+
+		// load default preset if it exists
+		default_preset_path = (EHE.preset_dir ++ "/default.scd").standardizePath;
+		if (File.exists(default_preset_path), {
+			var default_state = EHE_state.read_state_from_file(default_preset_path);
+			postln("loading default preset from: " ++ default_preset_path);
+			EHE_state.apply_state(default_state, this);
+			EHE_state.apply_state_frequencies(default_state, this);
+			// set as basis for morph controller
+			if (EHE.mph.notNil, {
+				EHE.mph.previous = default_state;
+				EHE.mph.current = default_state;
+			});
+		}, {
+			postln("no default preset found at: " ++ default_preset_path);
 		});
 	}
 
@@ -394,7 +412,7 @@ EHE_defs {
 			var drift = LFNoise2.kr(\drift_rate.kr(0.01), \drift_st.kr(0.07));
 			var fb_drift = LFNoise2.kr(\fb_drift_rate.kr(0.01));
 			var feedback = \feedback.kr(1/7) * fb_drift.max(\fb_floor.kr(0.02));
-			var osc = SinOscFB.ar(\hz.kr(48) * K2A.ar(drift.midiratio), feedback);
+			var osc = SinOscFB.ar(\hz.kr(48).lag(\hzLag.kr(1)) * K2A.ar(drift.midiratio), feedback);
 			Out.ar(\out.kr(0), osc * \amp.kr(0.1) * aenv);
 		}).send(s);
 
@@ -483,27 +501,45 @@ EHE_defs {
 // ---- GUI
 
 EHE_gui_color {
-	*bg { ^Color.new(0.95, 0.95, 0.95) }
-	*panel { ^Color.new(0.92, 0.92, 0.92) }
+	classvar grey;
+
+	*initClass {
+		grey = Color.new(0.8, 0.8, 0.8);
+	}
+
+	*bg { ^Color.new(0.95, 0.91, 0.99) }
+
+	*panel { ^Color.new(0.92, 0.99, 0.99) }
+
+	*sl_level { ^Color.new(0.9, 0.8, 0.8) }
+
+	*sl_level_main { ^Color.new(0.8, 0.9, 0.9) }
+
+	*sl_pan{ ^Color.new(0.9, 0.8, 0.9) }
+
 	*fg { ^Color.black }
+
 	*dc { arg i;
-		^Color.new(0.2, 0.8, 0.2).blend(Color.grey, 0.7).lighten(0.4).lighten(if(i.even, {0.5}, {0.1}));
+		var base = Color.new(0.77, 0.99, 0.76);
+		^if(i.even, { base.lighten(0.1) }, { base.darken(0.1) });
 	}
 
 	*env { arg i, j;
-		^Color.new(0.6, 0.6, 0.8).blend(Color.grey, if(i.even, {0.8}, {0.6})).lighten(0.4).lighten(if(j.even, {0.5}, {0.1}));
+		var base = Color.new(0.8, 0.8, 0.99).blend(grey, if(i.even, {0.9}, {0.5}));
+		^if(j.even, { base.lighten(0.5) }, { base.darken(0.9) });
 	}
 
 	*vca { arg i, j;
-		^Color.new(0.4, 0.8, 0.8).blend(Color.grey, if(i.even, {0.8}, {0.6})).lighten(0.4).lighten(if(j.even, {0.5}, {0.1}));
+		var base = Color.new(0.99, 0.77, 0.99).blend(grey, if(i.even, {0.9}, {0.5}));
+		^if(j.even, { base.lighten(0.5) }, { base.darken(0.9) });
 	}
 }
 
 EHE_gui_mix_channel : View {
 	// sliders
-	var <sl_level, <sl_pan;//, <sl_offset;
+	var <sl_level, <sl_pan;
 	// numeric displays
-	var <num_level, <num_pan;//, <num_offset;
+	var <num_level, <num_pan;
 
 	*new { arg parent, bounds, synth;
 		^super.new(parent, bounds).init(parent, bounds, synth);
@@ -525,6 +561,7 @@ EHE_gui_mix_channel : View {
 			var val = sl.value.linlin(0, 1, -1, 1);
 			num_pan.valueAction_(val);
 		});
+		sl_pan.background_(EHE_gui_color.sl_pan);
 		num_pan.action_({ arg num;
 			var val = num.value;
 			synth.set(\pos, val);
@@ -532,6 +569,7 @@ EHE_gui_mix_channel : View {
 		});
 
 		sl_level = Slider(this, w@(h-20)).thumbSize_(5);
+		sl_level.background_(EHE_gui_color.sl_level);
 		this.decorator.nextLine;
 		num_level = NumberBox(this, w@20);
 
@@ -585,7 +623,8 @@ EHE_gui_mod_channel : View {
 			var val = num.value;
 			EHE.ehe.z[\vca_dc][channel].set(\val, val);
 		});
-		num_offset.scroll_step_(0.1);
+		num_offset.scroll_step_(0.01);
+		num_offset.maxDecimals_(3);
 
 		4.do({ arg i;
 			num_env[i] = NumberBox(this, w@20);
@@ -655,8 +694,8 @@ EHE_gui_main : View {
 		});
 
 
-		but_adc.value = 1;
-		but_src.value = 1;
+		but_adc.valueAction_(1);
+		but_src.valueAction_(0);
 
 		h = h - 40;
 		this.decorator.nextLine;
@@ -678,14 +717,21 @@ EHE_gui_main : View {
 
 		sl_level.action_({ arg sl;
 			var val = sl.value;
+			var db;
 			if (val > 0.25, {
 				val = val.linlin(0.25, 1.0, 0.25.ampdb, 12).dbamp;
 			});
-			num_level.valueAction_(val.ampdb);
+			db = val.ampdb;
+			// postln("main level slider: val = " ++ sl.value ++ "; amp = " ++ val ++ "; dB = " ++ db);
+			num_level.value_(val.ampdb);
+			EHE.ehe.z[\out].set(\level, val);
 		});
+		sl_level.background_(EHE_gui_color.sl_level_main);
 		num_level.action_({ arg num;
 			var val = num.value.dbamp;
-			sl_level.value = if (val < 0.25, { val}, { val.linlin(0.25.ampdb, 12, 0.25, 1.0) });
+			var sl_val = if (val < 0.25, { val}, { num.value.linlin(0.25.ampdb, 12, 0.25, 1.0) });
+			// postln("main level number box: val = " ++ num.value ++ " dB; amp = " ++ val ++ "; slider = " ++ sl_val);
+			sl_level.value = sl_val;
 			EHE.ehe.z[\out].set(\level, val);
 		});
 	}
@@ -709,8 +755,8 @@ EHE_gui_env_mod : View {
 	init { arg parent, bounds;
 		var w = bounds.width / 3;
 		var h = bounds.height;
-		var num_w = w * 0.5;
-		var label_w = w * 1.5;
+		var num_w = w * 0.8;
+		var label_w = w * 2.2;
 
 		this.decorator = FlowLayout(bounds, 0@0, 0@0);
 
@@ -807,24 +853,24 @@ EHE_gui {
 	init {
 		e = EHE.ehe;
 
-		w = Window.new("EHE", Rect(100, 100, 1300, 600));
+		w = Window.new("EHE", Rect(100, 100, 1200, 600));
 		w.view.background_(EHE_gui_color.bg);
 		w.front;
-		w.view.decorator = FlowLayout(w.view.bounds, 0@0, 20@0);
+		w.view.decorator = FlowLayout(w.view.bounds, 8@8, 20@0);
 
-		labels = View.new(w, 120@600);
+		labels = View.new(w, 120@540);
 		labels.background_(EHE_gui_color.panel);
 		labels.decorator = FlowLayout(w.view.bounds, 0@0, 0@0);
 		this.add_labels(labels);
 
-		ui = View.new(w, 700@700);
+		ui = View.new(w, 640@540);
 		ui.background_(EHE_gui_color.panel);
 		ui.decorator = FlowLayout(w.view.bounds, 0@0, 0@0);
 
-		mainview = View.new(w, 120@700);
+		mainview = View.new(w, 120@540);
 		mainview.background_(EHE_gui_color.panel);
-		//w.view.decorator
-		env_mod_view = EHE_gui_env_mod.new(w, Rect(0, 0, 300, 600));
+
+		env_mod_view = EHE_gui_env_mod.new(w, Rect(0, 0, 220, 540));
 		env_mod_view.background_(EHE_gui_color.panel);
 
 		// per-oscillator headers
@@ -1041,8 +1087,22 @@ EHE_state {
 	*print_state { arg state;
 		var ks = state.keys.asArray.sort;
 		ks.do({ arg k;
-			//[k, state[k]].postln;
 			postln("\\" ++ k.asString ++ ", " ++ state[k] ++ ", ");
+		});
+	}
+
+	// immediately apply frequency values from state,
+	// without crossfading
+	*apply_state_frequencies { arg x, e;
+		var noscs = EHE.numOscs;
+
+		noscs.do({ arg i;
+			var k;
+
+			k = ("freq_"++(i+1)).asSymbol;
+			if (x.includesKey(k), {
+				e.z[\osc][i].set(\hz, x[k]);
+			});
 		});
 	}
 
